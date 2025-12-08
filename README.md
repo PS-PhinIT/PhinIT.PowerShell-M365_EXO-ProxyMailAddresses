@@ -10,6 +10,8 @@
 
 Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12.2025
 
+![easyEXCH ProxyAddress Manager GUI](Screenshots/GUIScreenshot_V1.0.0.jpg)
+
 ---
 
 ## 📋 Inhaltsverzeichnis
