@@ -20,7 +20,6 @@ param()
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
-Add-Type -AssemblyName System.Windows.Forms
 
 # Import Active Directory module
 if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
@@ -124,7 +123,7 @@ $xaml = @"
             
             <!-- User List -->
             <GroupBox Grid.Column="0" Header="Users" Margin="0,0,5,0" Padding="5">
-                <DataGrid Name="dgUsers" SelectionChanged="dgUsers_SelectionChanged">
+                <DataGrid Name="dgUsers">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*"/>
                     </DataGrid.Columns>
@@ -213,7 +212,7 @@ $xaml = @"
 function Write-Status {
     param([string]$Message)
     $window.FindName("txtStatus").Text = "$Message - $(Get-Date -Format 'HH:mm:ss')"
-    [System.Windows.Forms.Application]::DoEvents()
+    $window.Dispatcher.Invoke([Action]{}, [System.Windows.Threading.DispatcherPriority]::Background)
 }
 
 function Get-ADUserDetails {
@@ -223,8 +222,7 @@ function Get-ADUserDetails {
         Write-Status "Searching for users..."
         
         $filter = "DisplayName -like '*$SearchTerm*' -or SamAccountName -like '*$SearchTerm*' -or Mail -like '*$SearchTerm*'"
-        $users = Get-ADUser -Filter $filter -Properties DisplayName, Mail, ProxyAddresses, SamAccountName, UserPrincipalName | 
-                 Select-Object -First 50
+        $users = Get-ADUser -Filter $filter -Properties DisplayName, Mail, ProxyAddresses, SamAccountName, UserPrincipalName -ResultSetSize 50
         
         Write-Status "Found $($users.Count) user(s)"
         return $users
@@ -384,7 +382,13 @@ function Set-PrimaryProxyAddress {
 function Validate-EmailAddress {
     param([string]$Email)
     
-    return $Email -match "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    try {
+        [void][System.Net.Mail.MailAddress]::new($Email)
+        return $true
+    }
+    catch {
+        return $false
+    }
 }
 
 #endregion
