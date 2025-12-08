@@ -43,10 +43,12 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - ✅ **Mehrsprachig** - Deutsch und Englisch mit Live-Umschaltung (🌐 DE/EN)
 - ✅ **Live-Suche** - Automatische Suche ab 3 Zeichen
 - ✅ **MS365-Validierung** - Prüft ProxyAddresses auf ADSync-Kompatibilität
-- ✅ **Vollständiges Logging** - Alle Änderungen werden protokolliert
+- ✅ **Vollständiges Logging** - Alle Änderungen werden protokolliert (Haupt-Log + Debug-Log)
+- ✅ **Export & History** - CSV-Export und Änderungsverlauf pro Benutzer
+- ✅ **Statistik-Dashboard** - Detaillierte Übersicht über alle Benutzer und ProxyAddresses
+- ✅ **Filter-Funktion** - Benutzer nach Kompatibilität filtern
 - ✅ **EXE-Konvertierung** - PS2EXE-kompatibel für einfache Verteilung
 - ✅ **Legacy Exchange Support** - Berücksichtigt alte Exchange-Attribute
-- ✅ **Intelligente Domänen-Filterung** - Nur öffentliche TLDs bei ProxyAddress-Eingabe
 
 ---
 
@@ -58,8 +60,10 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - **Intelligente Suche** - Sucht in Vorname, Nachname, DisplayName, E-Mail, SAM-Account und UPN
 - **Live-Suche** - Automatische Suche ab 3 Zeichen mit 500ms Verzögerung
 - **Tabellarische Darstellung** - Übersichtliche Anzeige mit Vorname, Nachname, DisplayName und primärer E-Mail
-- **OU-Filter** - Optional: Suche in bestimmten OUs einschränken
-- **Domain Controller Auswahl** - Optional: Spezifischen DC verwenden
+- **Filter-Funktion** - Benutzer nach Kompatibilität filtern (Alle, Kompatible, Warnungen, Fehler)
+- **Export-Funktion** - Alle ProxyAddresses als CSV exportieren
+- **History-Funktion** - Änderungsverlauf pro Benutzer anzeigen
+- **Statistik-Dashboard** - Übersicht über alle geladenen Benutzer und ProxyAddresses
 
 ### ProxyAddress-Verwaltung
 
@@ -124,22 +128,29 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 ### Hauptfenster
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ easyEXCH ProxyAddress Manager                               │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ProxyAddress Management    │  Benutzer suchen             │
-│  ┌──────────────────────┐   │  ┌──────────────────────┐   │
-│  │ Max Mustermann       │   │  │ Suchbegriff: adm     │   │
-│  │ ✅ MS365 Kompatibel  │   │  │ OU Filter: (leer)    │   │
-│  ├──────────────────────┤   │  ├──────────────────────┤   │
-│  │ ProxyAddresses:      │   │  │ 👥 Alle laden │🔍 ADSync│
-│  │ SMTP:max@domain.com  │   │  ├──────────────────────┤   │
-│  │ smtp:max@old.com     │   │  │ Vorname │ Nachname   │   │
-│  │ X500:/o=Exchange...  │   │  │ Max     │ Mustermann │   │
-│  └──────────────────────┘   │  │ Erika   │ Musterfrau │   │
-│  [➕][✏️][🗑️][⭐][🔄]      │  └──────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ easyEXCH ProxyAddress Manager                          🌐 [DE] [EN]      │
+│ Verwaltung von ProxyMailAddresses für MS365 ADSync                       │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ProxyAddress Management          │  Benutzer suchen                    │
+│  ┌────────────────────────────┐   │  ┌──────────────────────────────┐  │
+│  │ Max Mustermann             │   │  │ Suchbegriff: [________] 🔍   │  │
+│  │ max.mustermann@domain.com  │   │  │                              │  │
+│  │ mmustermann                │   │  │ 👥 Alle laden │ 🔍 ADSync    │  │
+│  │ ✅ MS365 Kompatibel        │   │  │ 5 Benutzer geladen           │  │
+│  ├────────────────────────────┤   │  ├──────────────────────────────┤  │
+│  │ Typ │ Adresse │ Primär     │   │  │ Filter: [� Alle anzeigen ▼] │  │
+│  │ SMTP│max@do...│ Ja         │   │  │ 📤 Export │📜 History │📊    │  │
+│  │ smtp│max@ol...│ Nein       │   │  ├──────────────────────────────┤  │
+│  │ X500│/o=Exc...│ Nein       │   │  │ Vorname │ Nachname │ Email   │  │
+│  └────────────────────────────┘   │  │ Max     │ Mustermann│ max@.. │  │
+│  [➕ Hinzufügen][✏️ Bearbeiten]   │  │ Erika   │ Musterfrau│ erika@.│  │
+│  [🗑️ Löschen][⭐ Als Primär]      │  └──────────────────────────────┘  │
+│  [🔄 Aktualisieren]                │                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+│ Bereit                                      Version 1.0.0 | PhinIT.DE   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -238,6 +249,43 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
    - Detaillierte Tabelle
    - Alle Fehler und Warnungen
 
+### Filter verwenden
+
+1. Benutzer laden
+2. Filter-Dropdown auswählen:
+   - 🔍 Alle anzeigen
+   - ✅ Nur kompatible
+   - ⚠️ Mit Warnungen
+   - ❌ Mit Fehlern
+3. Liste wird automatisch gefiltert
+
+### ProxyAddresses exportieren
+
+1. Benutzer laden
+2. Klick auf **📤 Export CSV**
+3. CSV-Datei wird im Exports-Ordner erstellt
+4. Enthält: DisplayName, SamAccountName, Mail, ProxyAddress, Typ, IsPrimary
+
+### History anzeigen
+
+1. Benutzer auswählen
+2. Klick auf **📜 History**
+3. Zeigt alle Änderungen für diesen Benutzer:
+   - Zeitpunkt
+   - Aktion (Hinzugefügt, Gelöscht, Bearbeitet)
+   - ProxyAddress
+   - Ausgeführt von
+
+### Statistik anzeigen
+
+1. Benutzer laden
+2. Klick auf **📊 Statistik**
+3. Dashboard zeigt:
+   - Benutzer-Statistiken (Gesamt, mit/ohne ProxyAddresses)
+   - MS365-Kompatibilität (Kompatibel, Warnungen, Fehler)
+   - ProxyAddress-Statistiken (Gesamt, Durchschnitt, Typen)
+   - Prozentuale Verteilung
+
 ---
 
 ## 🔍 MS365 ADSync Validierung
@@ -286,17 +334,19 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 ## 📝 Logging
 
-### Log-Struktur
+### Ordner-Struktur
 
 ```
 Script-Verzeichnis\
-└── Logs\
-    ├── USERNAME1\
-    │   ├── USERNAME1_2025-12-08.log          # Haupt-Log
-    │   ├── DEBUG_USERNAME1_2025-12-08.log    # Debug-Log
-    │   └── ...
-    └── USERNAME2\
-        └── ...
+├── Logs\
+│   └── USERNAME\
+│       ├── USERNAME_2025-12-08.log          # Haupt-Log
+│       └── DEBUG_USERNAME_2025-12-08.log    # Debug-Log
+├── Exports\
+│   └── ProxyAddresses_Export_2025-12-08_14-30-00.csv
+└── History\
+    ├── user1_2025-12-08_14-25-30.csv
+    └── user2_2025-12-08_15-10-45.csv
 ```
 
 ### Log-Dateien
@@ -348,16 +398,24 @@ Details: ProxyAddress wurde erfolgreich hinzugefügt
 ### Konfiguration
 
 ```powershell
-# In Zeile 260-261 des Scripts:
+# In Zeile 623-624 des Scripts:
 $script:MaxLogAgeDays = 90          # Logs älter als 90 Tage werden gelöscht
 $script:EnableDebugLogging = $true  # Debug-Log aktivieren/deaktivieren
 ```
 
-### Log-Speicherort
+### Speicherorte
 
-**Standard**: `<Script-Verzeichnis>\Logs\<USERNAME>\`
+**Logs**:
+- Standard: `<Script-Verzeichnis>\Logs\<USERNAME>\`
+- Fallback: `%TEMP%\easyEXCH_PMA_Logs\<USERNAME>\`
 
-**Fallback** (bei Schreibfehler): `%TEMP%\easyEXCH_PMA_Logs\<USERNAME>\`
+**Exports**:
+- `<Script-Verzeichnis>\Exports\`
+
+**History**:
+- `<Script-Verzeichnis>\History\`
+- Automatischer Backup vor jeder Änderung
+- Format: `USERNAME_TIMESTAMP.csv`
 
 ---
 
@@ -460,8 +518,9 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 - Nur AD-Verwaltung (für ADSync)
 
 ### Bulk-Operationen
-- Keine Massen-Änderungen
+- Keine Massen-Änderungen an ProxyAddresses
 - Benutzer müssen einzeln bearbeitet werden
+- Bulk-Export und Bulk-Validierung sind verfügbar
 
 ---
 
@@ -485,7 +544,33 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 
 **Lösung**:
 1. Schreibrechte im Script-Verzeichnis prüfen
-2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt
+2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt (Fallback)
+3. Prüfen: `$script:LogFile` Variable im Debug-Modus
+
+### Problem: Export/History-Ordner fehlen
+
+**Lösung**:
+1. Ordner werden automatisch beim ersten Export/History erstellt
+2. Schreibrechte im Script-Verzeichnis prüfen
+3. Bei Bedarf manuell erstellen:
+   ```powershell
+   New-Item -Path "Exports" -ItemType Directory
+   New-Item -Path "History" -ItemType Directory
+   ```
+
+### Problem: Filter zeigt keine Benutzer
+
+**Lösung**:
+1. Zuerst Benutzer laden ("Alle Benutzer laden" oder Suche)
+2. Filter funktioniert nur mit geladenen Benutzern
+3. Filter zurücksetzen auf "Alle anzeigen"
+
+### Problem: Statistik zeigt "Keine Daten"
+
+**Lösung**:
+1. Zuerst Benutzer laden
+2. Mindestens 1 Benutzer muss geladen sein
+3. Statistik funktioniert nur mit geladenen Benutzern
 
 ### Problem: Suche findet keine Benutzer
 
@@ -514,6 +599,33 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
   - Alle GUI-Elemente, Buttons, Labels, Tooltips übersetzt
   - Alle Status-Meldungen und Dialoge lokalisiert
   - DataGrid-Spalten mehrsprachig
+- **Export-Funktion** - CSV-Export aller ProxyAddresses
+  - Exportiert DisplayName, SamAccountName, Mail, ProxyAddress, Typ, IsPrimary
+  - Speichert in Exports-Ordner mit Timestamp
+  - 📤 Export CSV Button
+- **History-Funktion** - Änderungsverlauf pro Benutzer
+  - Automatischer Backup vor jeder Änderung
+  - Zeigt alle Änderungen mit Zeitpunkt, Aktion, ProxyAddress, Benutzer
+  - 📜 History Button
+- **Statistik-Dashboard** - Detaillierte Übersicht
+  - Benutzer-Statistiken (Gesamt, mit/ohne ProxyAddresses)
+  - MS365-Kompatibilität (✅ Kompatibel, ⚠️ Warnungen, ❌ Fehler)
+  - ProxyAddress-Statistiken (Gesamt, Durchschnitt, Typen: SMTP, smtp, SIP, X500)
+  - Prozentuale Verteilung
+  - 📊 Statistik Button
+- **Filter-Funktion** - Benutzer nach Kompatibilität filtern
+  - 🔍 Alle anzeigen
+  - ✅ Nur kompatible
+  - ⚠️ Mit Warnungen
+  - ❌ Mit Fehlern
+- **Erweiterte Logging-Funktionen**
+  - Benutzer-spezifische Log-Ordner (Logs\USERNAME\)
+  - Haupt-Log für alle Aktionen
+  - Debug-Log für detaillierte Informationen
+  - Automatische Log-Bereinigung (älter als 90 Tage)
+  - Detaillierte Benutzer-Änderungs-Protokollierung
+  - Session-Header und -Footer
+  - Thread-IDs und Kontext-Informationen
 - **Verbesserte Button-Darstellung**
   - Breitere Action-Buttons mit vollständigem Text
   - Grid-Layout für optimale Platznutzung
@@ -526,6 +638,7 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
   - Alle Tooltips lokalisiert
   - Konsistente Fehlermeldungen
   - Verbesserte Status-Anzeigen
+  - Farbcodierte Status-Meldungen (Grün/Orange/Rot)
 
 #### 🐛 Bugfixes
 - Array-Konvertierung bei Suchergebnissen
@@ -539,7 +652,9 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 - Vollständige PS2EXE-Kompatibilität
 - Optimierte GUI-Performance
 - Bessere Fehlerbehandlung
-- Erweiterte Logging-Funktionen
+- Erweiterte Logging-Funktionen mit Thread-IDs
+- Automatische Ordner-Erstellung (Logs, Exports, History)
+- Fallback-Mechanismus für Logging (TEMP-Ordner)
 
 ---
 
@@ -576,8 +691,18 @@ SOFTWARE.
 ## 🙏 Danksagungen
 
 - **PS2EXE** - Markus Scholtes für das großartige PowerShell zu EXE Konvertierungs-Tool
-- **Microsoft** - Für PowerShell und Active Directory Module
+- **Microsoft** - Für PowerShell, WPF und Active Directory Module
 - **Community** - Für Feedback und Testing
+
+---
+
+## 📊 Statistiken
+
+- **Zeilen Code**: ~2700 Zeilen PowerShell
+- **Funktionen**: 40+ Funktionen
+- **Sprachen**: 2 (Deutsch, Englisch)
+- **Übersetzungen**: 60+ UI-Strings pro Sprache
+- **Features**: 15+ Hauptfunktionen
 
 ---
 
