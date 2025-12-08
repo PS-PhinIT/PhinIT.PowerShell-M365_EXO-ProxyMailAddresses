@@ -573,16 +573,6 @@ SOFTWARE.
 
 ---
 
-## 👨‍💻 Autor
-
-**Andreas Hepp**
-
-- 🌐 Website: [www.phinit.de](https://www.phinit.de)
-- 📧 E-Mail: info@phinit.de
-- 📅 Datum: 08.12.2025
-
----
-
 ## 🙏 Danksagungen
 
 - **PS2EXE** - Markus Scholtes für das großartige PowerShell zu EXE Konvertierungs-Tool
@@ -597,14 +587,7 @@ SOFTWARE.
 - [Microsoft Docs - Active Directory](https://docs.microsoft.com/powershell/module/activedirectory/)
 - [Microsoft 365 ADSync](https://docs.microsoft.com/azure/active-directory/hybrid/)
 
----
 
-## 🔗 Verwandte Projekte
-
-- **easyEXCH Export Manager** - Export und Import von AD-Objekten zu Exchange Online
-- **easyEXCH Tools Suite** - Weitere Tools für Exchange-Migration
-
----
 
 <div align="center">
 
