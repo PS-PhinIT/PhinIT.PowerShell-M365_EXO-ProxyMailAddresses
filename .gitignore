@@ -13,7 +13,10 @@
 */MSScripts/*.*
 Logs/PhinITAndreasHepp/*.*
 
-# Laufzeitdaten des Scripts im Root-Verzeichnis (enthalten personenbezogene AD-Daten)
-/Logs/
-/Exports/
-/History/
+# Laufzeitdaten des Scripts (enthalten personenbezogene AD-Daten) - in jedem Verzeichnis, z.B. src/Logs/
+**/Logs/
+**/Exports/
+**/History/
+
+# Kompilierte Binärdateien (werden als Release-Asset veröffentlicht, nicht eingecheckt)
+*.exe

@@ -1,6 +1,6 @@
 # easyEXCH ProxyAddress Manager
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
@@ -8,9 +8,7 @@
 
 **Tool zur Verwaltung von ProxyMailAddresses für Microsoft 365 ADSync**
 
-Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12.2025
-
-![easyEXCH ProxyAddress Manager GUI](Screenshots/GUIScreenshot_V1.0.0.jpg)
+Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | Version 1.0.2 (14.10.2026)
 
 ---
 
@@ -18,7 +16,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 - [Übersicht](#-übersicht)
 - [Features](#-features)
-- [Screenshots](#-screenshots)
+- [Projektstruktur](#-projektstruktur)
 - [Installation](#-installation)
 - [Verwendung](#-verwendung)
 - [MS365 ADSync Validierung](#-ms365-adsync-validierung)
@@ -28,6 +26,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - [Bekannte Einschränkungen](#-bekannte-einschränkungen)
 - [Troubleshooting](#-troubleshooting)
 - [Changelog](#-changelog)
+- [Dokumentation](#-dokumentation)
 - [Lizenz](#-lizenz)
 
 ---
@@ -70,8 +69,9 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - Dialog zur Eingabe neuer ProxyAddresses
 - Typ-Auswahl: SMTP: (primär), smtp: (sekundär), SIP:, X500:
 - X500: Eingabe des vollständigen Exchange-DN (wird mit `legacyExchangeDN` vorbelegt)
-- Format-Prüfung vor dem Schreiben (E-Mail-Format, X500-DN)
-- Eindeutigkeitsprüfung im gesamten AD (Global Catalog) – verhindert ADSync-Fehler `AttributeValueMustBeUnique`
+- Format-Prüfung vor dem Schreiben (RFC-konforme E-Mail-Syntax, X500-DN, Steuerzeichen, max. 1123 Zeichen)
+- Enter = Hinzufügen, Esc = Abbrechen
+- Eindeutigkeitsprüfung im gesamten AD (Global Catalog) gegen `proxyAddresses`, `mail` und `userPrincipalName` – verhindert ADSync-Fehler `AttributeValueMustBeUnique`
 - Automatische Konvertierung alter primärer Adressen zu sekundären, Mail-Attribut wird bei neuer primärer Adresse aktualisiert
 
 #### ✏️ Bearbeiten
@@ -114,9 +114,8 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - Keine doppelten ProxyAddresses (case-insensitive)
 - Keine ungültigen SMTP-Adressen
 - Mail-Attribut stimmt mit primärer SMTP überein
-- E-Mail-Format (RFC-konform)
-- Unerlaubte Zeichen
-- Länge (max. 254 Zeichen)
+- E-Mail-Format (RFC 5322: Local-Part max. 64 Zeichen, keine doppelten/führenden Punkte, Domain-Labels max. 63 Zeichen, IDN-TLDs `xn--`)
+- Länge (Adresse max. 254 Zeichen)
 - Legacy Exchange Attribute (msExchRecipientTypeDetails, legacyExchangeDN)
 - MailNickname vorhanden
 - TargetAddress für Remote Mailboxes
@@ -128,34 +127,26 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 ---
 
-## 📸 Screenshots
+## 📁 Projektstruktur
 
-### Hauptfenster
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ easyEXCH ProxyAddress Manager                          🌐 [DE] [EN]      │
-│ Verwaltung von ProxyMailAddresses für MS365 ADSync                       │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ProxyAddress Management          │  Benutzer suchen                    │
-│  ┌────────────────────────────┐   │  ┌──────────────────────────────┐  │
-│  │ Max Mustermann             │   │  │ Suchbegriff: [________] 🔍   │  │
-│  │ max.mustermann@domain.com  │   │  │                              │  │
-│  │ mmustermann                │   │  │ 👥 Alle laden │ 🔍 ADSync    │  │
-│  │ ✅ MS365 Kompatibel        │   │  │ 5 Benutzer geladen           │  │
-│  ├────────────────────────────┤   │  ├──────────────────────────────┤  │
-│  │ Typ │ Adresse │ Primär     │   │  │ Filter: [� Alle anzeigen ▼] │  │
-│  │ SMTP│max@do...│ Ja         │   │  │ 📤 Export │📜 History │📊    │  │
-│  │ smtp│max@ol...│ Nein       │   │  ├──────────────────────────────┤  │
-│  │ X500│/o=Exc...│ Nein       │   │  │ Vorname │ Nachname │ Email   │  │
-│  └────────────────────────────┘   │  │ Max     │ Mustermann│ max@.. │  │
-│  [➕ Hinzufügen][✏️ Bearbeiten]   │  │ Erika   │ Musterfrau│ erika@.│  │
-│  [🗑️ Löschen][⭐ Als Primär]      │  └──────────────────────────────┘  │
-│  [🔄 Aktualisieren]                │                                    │
-└──────────────────────────────────────────────────────────────────────────┘
-│ Bereit                                      Version 1.0.0 | PhinIT.DE   │
-└──────────────────────────────────────────────────────────────────────────┘
+.
+├── src/
+│   └── easyEXCH-PMA_V1.0.2.ps1   # Anwendung
+├── docs/
+│   ├── AUDIT.md                  # Audit-Bericht 1.0.2
+│   ├── LOGGING.md                # Logging-Dokumentation
+│   └── screenshots/              # Screenshots der aktuellen Version
+├── CHANGELOG.md                  # Versionshistorie
+├── CONTRIBUTING.md               # Mitwirken & Release-Checkliste
+├── LICENSE                       # MIT-Lizenz
+├── README.md
+└── SECURITY.md                   # Sicherheitsrichtlinie
 ```
+
+Ältere Versionen sind über die Git-Historie und den [Changelog](CHANGELOG.md) nachvollziehbar. Kompilierte EXE-Dateien werden nicht im Repository abgelegt (siehe [EXE-Konvertierung](#-exe-konvertierung)).
+
+Zur Laufzeit legt das Script neben sich die Ordner `Logs\`, `Exports\` und `History\` an (siehe [Logging](#-logging)). Diese enthalten personenbezogene AD-Daten und sind per `.gitignore` ausgeschlossen.
 
 ---
 
@@ -176,12 +167,12 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
    cd PhinIT.PowerShell-M365_EXO-ProxyMailAddresses
    ```
 
-2. **Script ausführen**:
+2. **Script ausführen** (Windows PowerShell 5.1):
    ```powershell
-   .\easyEXCH-PMA_V1.0.1.ps1
+   powershell.exe -STA -File .\src\easyEXCH-PMA_V1.0.2.ps1
    ```
-   
-   > Hinweis: Die mitgelieferte `easyEXCH-PMA_V1.0.0.exe` entspricht Version 1.0.0. Für Version 1.0.1 bitte das Script neu kompilieren (siehe EXE-Konvertierung).
+
+   > Hinweis: Bei aus dem Internet geladenen Dateien ggf. `Unblock-File .\src\easyEXCH-PMA_V1.0.2.ps1` ausführen bzw. die Execution Policy beachten.
 
 3. **Optional: Als EXE kompilieren** (siehe [EXE-Konvertierung](#-exe-konvertierung))
 
@@ -268,7 +259,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 1. Benutzer laden
 2. Klick auf **📤 Export CSV**
-3. CSV-Datei wird im Exports-Ordner erstellt
+3. CSV-Datei wird im Exports-Ordner erstellt (alle geladenen Benutzer, unabhängig vom aktiven Filter)
 4. Enthält: DisplayName, SamAccountName, Mail, ProxyAddress, Typ, IsPrimary
 
 ### History anzeigen
@@ -301,7 +292,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 |--------|-----------|--------|
 | ✅ OK | ProxyAddress ist MS365-kompatibel | Keine Aktion nötig |
 | ⚠️ Legacy | X500-Adresse von altem Exchange | Normal für Migration |
-| ❌ Ungültig | Format-Fehler oder unerlaubte Zeichen | Korrektur erforderlich |
+| ❌ Ungültig | Format-Fehler (z.B. ungültige E-Mail-Syntax) | Korrektur erforderlich |
 
 ### Häufige Fehler
 
@@ -412,15 +403,19 @@ $script:EnableDebugLogging = $true  # Debug-Log aktivieren/deaktivieren
 
 **Logs**:
 - Standard: `<Script-Verzeichnis>\Logs\<USERNAME>\`
-- Fallback: `%TEMP%\easyEXCH_PMA_Logs\<USERNAME>\`
+- Fallback (Verzeichnis nicht beschreibbar): `%TEMP%\easyEXCH_PMA_Logs\<USERNAME>\`
 
 **Exports**:
-- `<Script-Verzeichnis>\Exports\`
+- Standard: `<Script-Verzeichnis>\Exports\`
+- Fallback: `%LOCALAPPDATA%\easyEXCH_PMA\Exports\`
 
 **History**:
-- `<Script-Verzeichnis>\History\`
-- Automatischer Backup vor jeder Änderung
+- Standard: `<Script-Verzeichnis>\History\`
+- Fallback: `%LOCALAPPDATA%\easyEXCH_PMA\History\`
+- Automatischer Backup vor jeder Änderung (schlägt er fehl, wird vor der Änderung nachgefragt)
 - Format: `SAMACCOUNTNAME_TIMESTAMP.csv`
+
+Zeilenumbrüche in Log-Meldungen werden neutralisiert (Schutz vor Log-Injection). Details: [docs/LOGGING.md](docs/LOGGING.md).
 
 ---
 
@@ -438,17 +433,19 @@ Install-Module PS2EXE -Scope CurrentUser
 ### Empfohlene Kompilierung
 
 ```powershell
-ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
+# -iconFile ist optional (Icon-Datei ist nicht im Repository enthalten).
+# Hinweis: Nach einem Backtick (`) darf kein Kommentar stehen, sonst bricht die Zeilenfortsetzung.
+ps2exe .\src\easyEXCH-PMA_V1.0.2.ps1 .\easyEXCH-PMA_V1.0.2.exe `
     -noConsole `
     -STA `
     -x64 `
-    -iconFile .\icon.ico `   # optional, Icon-Datei ist nicht im Repository enthalten
+    -iconFile .\icon.ico `
     -title "easyEXCH ProxyAddress Manager" `
     -description "ProxyAddress Manager für MS365 ADSync" `
     -company "PhinIT.DE" `
     -product "easyEXCH ProxyAddress Manager" `
     -copyright "© 2025 Andreas Hepp - www.phinit.de" `
-    -version "1.0.1" `
+    -version "1.0.2" `
     -DPIAware `
     -winFormsDPIAware
 ```
@@ -472,6 +469,8 @@ ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
 - Visual Styles aktiviert
 - Pfad-Erkennung für Script & EXE
 - Logging funktioniert in beiden Modi
+
+Die erstellte EXE wird nicht eingecheckt, sondern bei Bedarf als Release-Asset veröffentlicht.
 
 ---
 
@@ -516,11 +515,15 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 
 ### Active Directory
 - Funktioniert nur mit lokalem Active Directory
-- Keine Azure AD / Entra ID Unterstützung
+- Keine direkte Microsoft Entra ID Unterstützung
 
 ### Exchange Online
 - Keine direkte Exchange Online Verbindung
 - Nur AD-Verwaltung (für ADSync)
+
+### Bedienung
+- AD-Abfragen laufen im GUI-Thread – bei sehr großen Verzeichnissen reagiert das Fenster während „Alle Benutzer laden“ verzögert (Wartecursor)
+- Beim Löschen der primären SMTP-Adresse bleibt das `mail`-Attribut unverändert (es erscheint eine Warnung)
 
 ### Bulk-Operationen
 - Keine Massen-Änderungen an ProxyAddresses
@@ -549,19 +552,15 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 
 **Lösung**:
 1. Schreibrechte im Script-Verzeichnis prüfen
-2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt (Fallback)
+2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt (Fallback, auch wenn der Ordner existiert, aber nicht beschreibbar ist)
 3. Prüfen: `$script:LogFile` Variable im Debug-Modus
 
 ### Problem: Export/History-Ordner fehlen
 
 **Lösung**:
-1. Ordner werden automatisch beim ersten Export/History erstellt
-2. Schreibrechte im Script-Verzeichnis prüfen
-3. Bei Bedarf manuell erstellen:
-   ```powershell
-   New-Item -Path "Exports" -ItemType Directory
-   New-Item -Path "History" -ItemType Directory
-   ```
+1. Ordner werden beim Start automatisch neben dem Script erstellt
+2. Ist das Script-Verzeichnis nicht beschreibbar (z.B. `C:\Program Files`), werden `%LOCALAPPDATA%\easyEXCH_PMA\Exports\` und `...\History\` verwendet (Hinweis im Log)
+3. Schreibrechte im Script-Verzeichnis prüfen
 
 ### Problem: Filter zeigt keine Benutzer
 
@@ -596,136 +595,33 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 
 ## 📋 Changelog
 
-### Version 1.0.1 (14.10.2026) – Audit-Release
+Alle Änderungen je Version (1.0.2, 1.0.1, 1.0.0, 0.0.3, 0.0.2, 0.0.1) stehen im **[CHANGELOG.md](CHANGELOG.md)**.
 
-#### 🔒 Sicherheit
-- `.gitignore` schließt die Laufzeit-Ordner `Logs/`, `Exports/` und `History/` im Script-Verzeichnis aus (personenbezogene AD-Daten)
-- CSV-/Formel-Injection in Exporten verhindert (Werte mit `=`, `+`, `-`, `@` werden entschärft)
-- LDAP-Filter-Escaping bei der Eindeutigkeitsprüfung
-- Prüfung beim Start, ob das ActiveDirectory-Modul verfügbar ist
+**Neu in 1.0.2** (Audit-Release 2, Details in [docs/AUDIT.md](docs/AUDIT.md)):
+- 🔒 Schutz vor Log-Injection, strengere Eingabeprüfung, Eindeutigkeit auch gegen `mail`/`userPrincipalName`, abgesichertes History-Backup
+- 🐛 RFC-konforme E-Mail-Prüfung, keine doppelten primären Adressen mehr, korrekte Fallbacks für Logs/Exports/History
+- ⚡ Schnellere Validierung, Statistik und Benutzeraktualisierung
+- 🌐 Vollständige DE/EN-Lokalisierung aller Dialoge und Meldungen
+- 📁 Neue Projektstruktur (`src/`, `docs/`), alte Versionen, Screenshots und EXE entfernt
 
-#### 🐛 Bugfixes
-- Falsche Warnung „Mail-Attribut stimmt nicht mit primärer SMTP-Adresse überein" bei **jedem** Benutzer mit genau einer primären Adresse behoben (String-Indexierung lieferte nur das erste Zeichen)
-- Änderungen (Hinzufügen, Bearbeiten, Löschen, Als Primär) erfolgen jetzt in **einem** atomaren AD-Schreibvorgang statt mehrerer Einzelschritte
-- History-Backup wird jetzt **vor** der Änderung mit dem aktuellen AD-Stand erstellt
-- Bearbeiten ohne Lösch-/Neuanlage-Kette und doppelte Bestätigungsdialoge
-- X500-Adressen wurden fälschlich als `X500:name@domain` erzeugt
-- History zeigte auch Einträge anderer Benutzer mit gleichem Namenspräfix (z.B. `max` / `max_muster`)
-- Filter mit 0 Treffern führte zu einem Fehler
-- Domänen-Ermittlung: UPN-Suffixe werden berücksichtigt, echte öffentliche TLDs (z.B. `.dev`) nicht mehr gefiltert, nur SMTP-Adressen ausgewertet
-- Aktualisierte Benutzer werden in Liste, Filter, Export und Statistik übernommen
-- Filter bleibt nach neuem Laden/Suchen aktiv
-- Zeilenumbruch im Hinweistext „Kein Benutzer ausgewählt"
+---
 
-#### ⚡ Performance
-- Filter auf aktive Benutzer serverseitig statt clientseitig
-- Validierungsergebnisse werden zwischengespeichert (Filter, Statistik, ADSync-Prüfung)
-- Listen statt Array-`+=` bei großen Datenmengen
-- Forest-Domänen werden einmal pro Sitzung ermittelt
-- Ein wiederverwendeter Such-Timer statt eines neuen Timers pro Tastendruck
+## 📚 Dokumentation
 
-#### 🔧 Verbesserungen
-- Neue ProxyAddresses werden auf Format und Eindeutigkeit im gesamten AD geprüft
-- Validierung erkennt doppelte und ungültige SMTP-Adressen
-- Warnungen werden auch bei kompatiblen Benutzern angezeigt
-- Validierungsstatus, Ja/Nein-Spalte und Filteranzeige lokalisiert (DE/EN)
-- Wartecursor bei AD-Abfragen
-- Befehle: `Refresh-CurrentUser` → `Update-CurrentUser` (genehmigtes Verb), keine Überschreibung der Automatik-Variablen `$Args`/`$sender`
-
-### Version 1.0.0 (08.12.2025)
-
-#### ✨ Neue Features
-- **Mehrsprachigkeit** - Vollständige Unterstützung für Deutsch und Englisch
-  - Live-Umschaltung über 🌐 DE/EN Buttons im Header
-  - Alle GUI-Elemente, Buttons, Labels, Tooltips übersetzt
-  - Alle Status-Meldungen und Dialoge lokalisiert
-  - DataGrid-Spalten mehrsprachig
-- **Export-Funktion** - CSV-Export aller ProxyAddresses
-  - Exportiert DisplayName, SamAccountName, Mail, ProxyAddress, Typ, IsPrimary
-  - Speichert in Exports-Ordner mit Timestamp
-  - 📤 Export CSV Button
-- **History-Funktion** - Änderungsverlauf pro Benutzer
-  - Automatischer Backup vor jeder Änderung
-  - Zeigt alle Änderungen mit Zeitpunkt, Aktion, ProxyAddress, Benutzer
-  - 📜 History Button
-- **Statistik-Dashboard** - Detaillierte Übersicht
-  - Benutzer-Statistiken (Gesamt, mit/ohne ProxyAddresses)
-  - MS365-Kompatibilität (✅ Kompatibel, ⚠️ Warnungen, ❌ Fehler)
-  - ProxyAddress-Statistiken (Gesamt, Durchschnitt, Typen: SMTP, smtp, SIP, X500)
-  - Prozentuale Verteilung
-  - 📊 Statistik Button
-- **Filter-Funktion** - Benutzer nach Kompatibilität filtern
-  - 🔍 Alle anzeigen
-  - ✅ Nur kompatible
-  - ⚠️ Mit Warnungen
-  - ❌ Mit Fehlern
-- **Erweiterte Logging-Funktionen**
-  - Benutzer-spezifische Log-Ordner (Logs\USERNAME\)
-  - Haupt-Log für alle Aktionen
-  - Debug-Log für detaillierte Informationen
-  - Automatische Log-Bereinigung (älter als 90 Tage)
-  - Detaillierte Benutzer-Änderungs-Protokollierung
-  - Session-Header und -Footer
-  - Thread-IDs und Kontext-Informationen
-- **Verbesserte Button-Darstellung**
-  - Breitere Action-Buttons mit vollständigem Text
-  - Grid-Layout für optimale Platznutzung
-  - Emoji + Text für bessere Erkennbarkeit
-- **Intelligente Domänen-Filterung**
-  - Automatisches Filtern lokaler/interner TLDs
-  - Nur öffentliche Domänen (com, de, net, etc.) werden angezeigt
-  - Blacklist für local, internal, corp, test, etc.
-- **Optimierte Benutzerführung**
-  - Alle Tooltips lokalisiert
-  - Konsistente Fehlermeldungen
-  - Verbesserte Status-Anzeigen
-  - Farbcodierte Status-Meldungen (Grün/Orange/Rot)
-
-#### 🐛 Bugfixes
-- Array-Konvertierung bei Suchergebnissen
-- Count-Property bei einzelnen Ergebnissen
-- Filter-Übergabe an Get-ADUser
-- Get-LocalizedString Parameter-Handling
-- Footer-Anzeige bei Sprachwechsel
-- Platzhalter-Ersetzung in lokalisierten Strings
-
-#### 🔧 Verbesserungen
-- Vollständige PS2EXE-Kompatibilität
-- Optimierte GUI-Performance
-- Bessere Fehlerbehandlung
-- Erweiterte Logging-Funktionen mit Thread-IDs
-- Automatische Ordner-Erstellung (Logs, Exports, History)
-- Fallback-Mechanismus für Logging (TEMP-Ordner)
+| Datei | Inhalt |
+|-------|--------|
+| [CHANGELOG.md](CHANGELOG.md) | Versionshistorie |
+| [docs/AUDIT.md](docs/AUDIT.md) | Audit-Bericht (Befunde und Status) |
+| [docs/LOGGING.md](docs/LOGGING.md) | Logging-System im Detail |
+| [SECURITY.md](SECURITY.md) | Sicherheitsrichtlinie und Meldeweg |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Mitwirken und Release-Checkliste |
+| [LICENSE](LICENSE) | MIT-Lizenz |
 
 ---
 
 ## 📄 Lizenz
 
-Dieses Projekt ist unter der MIT-Lizenz lizenziert.
-
-```
-MIT License
-
-Copyright (c) 2025 Andreas Hepp - www.phinit.de
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) lizenziert – © 2025 Andreas Hepp - www.phinit.de
 
 ---
 
@@ -739,10 +635,10 @@ SOFTWARE.
 
 ## 📊 Statistiken
 
-- **Zeilen Code**: ~3000 Zeilen PowerShell
-- **Funktionen**: 40+ Funktionen
+- **Zeilen Code**: ~3300 Zeilen PowerShell
+- **Funktionen**: 39 Funktionen
 - **Sprachen**: 2 (Deutsch, Englisch)
-- **Übersetzungen**: 60+ UI-Strings pro Sprache
+- **Übersetzungen**: 162 UI-Strings pro Sprache
 - **Features**: 15+ Hauptfunktionen
 
 ---
@@ -750,9 +646,11 @@ SOFTWARE.
 ## 📚 Weitere Ressourcen
 
 - [PS2EXE GitHub](https://github.com/MScholtes/PS2EXE)
-- [Microsoft Docs - Active Directory](https://docs.microsoft.com/powershell/module/activedirectory/)
-- [Microsoft 365 ADSync](https://docs.microsoft.com/azure/active-directory/hybrid/)
+- [Microsoft Learn - ActiveDirectory-Modul](https://learn.microsoft.com/powershell/module/activedirectory/)
+- [Microsoft Learn - Microsoft Entra Connect](https://learn.microsoft.com/entra/identity/hybrid/connect/whatis-azure-ad-connect)
+- [Microsoft Learn - Doppelte Attribute bei der Synchronisierung](https://learn.microsoft.com/entra/identity/hybrid/connect/how-to-connect-syncservice-duplicate-attribute-resiliency)
 
+---
 
 
 <div align="center">
