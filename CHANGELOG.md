@@ -30,7 +30,7 @@ Vollständiges Audit (Sicherheit, Performance, Funktionen, Verweise, GUI, Befehl
 - Domänen-Cache wird nach Laden/Ändern von Benutzern zurückgesetzt
 - Logging-Initialisierung: nicht beschreibbarer, aber vorhandener Log-Ordner führt jetzt korrekt zum Fallback `%TEMP%\easyEXCH_PMA_Logs`
 - Export/History: Fallback auf `%LOCALAPPDATA%\easyEXCH_PMA\` wenn das Script-Verzeichnis nicht beschreibbar ist (z.B. `C:\Program Files`)
-- „History“-Button wird abhängig von der Benutzerauswahl aktiviert/deaktiviert
+- „History“-Button bezieht sich auf den im linken Bereich angezeigten Benutzer und wurde bisher beim Aufheben der Auswahl bzw. nach einer neuen Suche deaktiviert, obwohl dieser Benutzer weiterhin angezeigt wurde – er bleibt jetzt aktiv, solange ein Benutzer angezeigt wird
 - Doppelte `FindName`-Aufrufe in der GUI-Initialisierung entfernt
 - Footer zeigte eine fest codierte Versionsnummer – Version wird jetzt aus `$script:AppVersion` erzeugt (Footer und Fenstertitel)
 

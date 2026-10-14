@@ -61,7 +61,7 @@ Legende: ✅ behoben · ⚠️ bewusst akzeptiert (Begründung angegeben)
 | G3 | Footer mit fest codierter Version | ✅ aus `$script:AppVersion`, ebenso Fenstertitel |
 | G4 | Hinzufügen/Bearbeiten: kein Enter/Esc, kein Fokus, frei skalierbar | ✅ `IsDefault`/`IsCancel`, Fokus + Textauswahl, `NoResize` |
 | G5 | Typ-Präfix im Hinzufügen-Dialog per String-Vergleich des angezeigten Textes ermittelt (bricht bei Lokalisierung) | ✅ Ermittlung über `SelectedIndex` |
-| G6 | „History“-Button unabhängig von der Auswahl aktiv | ✅ abhängig von Benutzerauswahl |
+| G6 | „History“-Button wurde beim Aufheben der Tabellenauswahl / nach neuer Suche deaktiviert, obwohl der Benutzer weiterhin angezeigt wurde (inkonsistent zu den übrigen Aktionen) | ✅ aktiv, solange ein Benutzer angezeigt wird (`$script:CurrentUser`) |
 | G7 | Fenster ohne Mindestgröße – Layout brach bei kleinen Fenstern | ✅ `MinWidth=1100`, `MinHeight=650` |
 | G8 | Doppelte `FindName`-Aufrufe | ✅ entfernt |
 | G9 | Rückgabewerte von `Children.Add`/`MessageBox::Show` gelangten in die Pipeline | ✅ `[void]` / `Out-Null` |
