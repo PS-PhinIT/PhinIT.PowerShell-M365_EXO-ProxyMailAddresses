@@ -1,6 +1,6 @@
 # easyEXCH ProxyAddress Manager
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
@@ -29,7 +29,6 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - [Troubleshooting](#-troubleshooting)
 - [Changelog](#-changelog)
 - [Lizenz](#-lizenz)
-- [Autor](#-autor)
 
 ---
 
@@ -70,12 +69,15 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 #### ➕ Hinzufügen
 - Dialog zur Eingabe neuer ProxyAddresses
 - Typ-Auswahl: SMTP: (primär), smtp: (sekundär), SIP:, X500:
-- Automatische Konvertierung alter primärer Adressen zu sekundären
+- X500: Eingabe des vollständigen Exchange-DN (wird mit `legacyExchangeDN` vorbelegt)
+- Format-Prüfung vor dem Schreiben (E-Mail-Format, X500-DN)
+- Eindeutigkeitsprüfung im gesamten AD (Global Catalog) – verhindert ADSync-Fehler `AttributeValueMustBeUnique`
+- Automatische Konvertierung alter primärer Adressen zu sekundären, Mail-Attribut wird bei neuer primärer Adresse aktualisiert
 
 #### ✏️ Bearbeiten
 - Bestehende ProxyAddresses ändern
-- Atomare Operation: Alte löschen, neue hinzufügen
-- Automatisches Rollback bei Fehlern
+- Atomare Operation: Ersetzen in einem einzigen AD-Schreibvorgang (kein Teilzustand bei Fehlern)
+- Änderung der Groß-/Kleinschreibung (z.B. `smtp:` → `SMTP:`) möglich
 
 #### 🗑️ Löschen
 - Löschen mit Sicherheitsabfrage
@@ -109,6 +111,8 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 - Vorhandensein von ProxyAddresses
 - Primäre SMTP-Adresse vorhanden (SMTP: Großbuchstaben)
 - Keine mehrfachen primären SMTP-Adressen
+- Keine doppelten ProxyAddresses (case-insensitive)
+- Keine ungültigen SMTP-Adressen
 - Mail-Attribut stimmt mit primärer SMTP überein
 - E-Mail-Format (RFC-konform)
 - Unerlaubte Zeichen
@@ -168,14 +172,16 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 1. **Repository klonen**:
    ```powershell
-   git clone https://github.com/IhrUsername/easyEXCH-ProxyAddress.git
-   cd easyEXCH-ProxyAddress
+   git clone https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses.git
+   cd PhinIT.PowerShell-M365_EXO-ProxyMailAddresses
    ```
 
 2. **Script ausführen**:
    ```powershell
-   .\easyEXCH-PMA_V1.0.0.ps1
+   .\easyEXCH-PMA_V1.0.1.ps1
    ```
+   
+   > Hinweis: Die mitgelieferte `easyEXCH-PMA_V1.0.0.exe` entspricht Version 1.0.0. Für Version 1.0.1 bitte das Script neu kompilieren (siehe EXE-Konvertierung).
 
 3. **Optional: Als EXE kompilieren** (siehe [EXE-Konvertierung](#-exe-konvertierung))
 
@@ -187,7 +193,6 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 
 1. **Alle Benutzer laden**:
    - Klick auf "👥 Alle Benutzer laden"
-   - Optional: Domain Controller oder OU-Filter angeben
 
 2. **Gezielt suchen**:
    - Mindestens 3 Zeichen eingeben
@@ -328,7 +333,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | 08.12
 **Lösung**:
 1. Klick auf **➕ Hinzufügen**
 2. Typ: `X500:`
-3. Adresse: Wert aus legacyExchangeDN
+3. Adresse: wird automatisch mit dem Wert aus legacyExchangeDN vorbelegt
 
 ---
 
@@ -398,7 +403,7 @@ Details: ProxyAddress wurde erfolgreich hinzugefügt
 ### Konfiguration
 
 ```powershell
-# In Zeile 623-624 des Scripts:
+# Im Abschnitt "Logging-Konfiguration" des Scripts:
 $script:MaxLogAgeDays = 90          # Logs älter als 90 Tage werden gelöscht
 $script:EnableDebugLogging = $true  # Debug-Log aktivieren/deaktivieren
 ```
@@ -415,7 +420,7 @@ $script:EnableDebugLogging = $true  # Debug-Log aktivieren/deaktivieren
 **History**:
 - `<Script-Verzeichnis>\History\`
 - Automatischer Backup vor jeder Änderung
-- Format: `USERNAME_TIMESTAMP.csv`
+- Format: `SAMACCOUNTNAME_TIMESTAMP.csv`
 
 ---
 
@@ -433,17 +438,17 @@ Install-Module PS2EXE -Scope CurrentUser
 ### Empfohlene Kompilierung
 
 ```powershell
-ps2exe .\easyEXCH-PMA_V1.0.0.ps1 .\easyEXCH-PMA.exe `
+ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
     -noConsole `
     -STA `
     -x64 `
-    -iconFile .\icon.ico `
+    -iconFile .\icon.ico `   # optional, Icon-Datei ist nicht im Repository enthalten
     -title "easyEXCH ProxyAddress Manager" `
     -description "ProxyAddress Manager für MS365 ADSync" `
     -company "PhinIT.DE" `
     -product "easyEXCH ProxyAddress Manager" `
     -copyright "© 2025 Andreas Hepp - www.phinit.de" `
-    -version "1.0.0" `
+    -version "1.0.1" `
     -DPIAware `
     -winFormsDPIAware
 ```
@@ -499,7 +504,7 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 ### Berechtigungen
 
 - **Lesen**: Alle Benutzer-Attribute
-- **Schreiben**: ProxyAddresses, Mail, MailNickname
+- **Schreiben**: ProxyAddresses, Mail
 
 ---
 
@@ -590,6 +595,42 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 ---
 
 ## 📋 Changelog
+
+### Version 1.0.1 (14.10.2026) – Audit-Release
+
+#### 🔒 Sicherheit
+- `.gitignore` schließt die Laufzeit-Ordner `Logs/`, `Exports/` und `History/` im Script-Verzeichnis aus (personenbezogene AD-Daten)
+- CSV-/Formel-Injection in Exporten verhindert (Werte mit `=`, `+`, `-`, `@` werden entschärft)
+- LDAP-Filter-Escaping bei der Eindeutigkeitsprüfung
+- Prüfung beim Start, ob das ActiveDirectory-Modul verfügbar ist
+
+#### 🐛 Bugfixes
+- Falsche Warnung „Mail-Attribut stimmt nicht mit primärer SMTP-Adresse überein" bei **jedem** Benutzer mit genau einer primären Adresse behoben (String-Indexierung lieferte nur das erste Zeichen)
+- Änderungen (Hinzufügen, Bearbeiten, Löschen, Als Primär) erfolgen jetzt in **einem** atomaren AD-Schreibvorgang statt mehrerer Einzelschritte
+- History-Backup wird jetzt **vor** der Änderung mit dem aktuellen AD-Stand erstellt
+- Bearbeiten ohne Lösch-/Neuanlage-Kette und doppelte Bestätigungsdialoge
+- X500-Adressen wurden fälschlich als `X500:name@domain` erzeugt
+- History zeigte auch Einträge anderer Benutzer mit gleichem Namenspräfix (z.B. `max` / `max_muster`)
+- Filter mit 0 Treffern führte zu einem Fehler
+- Domänen-Ermittlung: UPN-Suffixe werden berücksichtigt, echte öffentliche TLDs (z.B. `.dev`) nicht mehr gefiltert, nur SMTP-Adressen ausgewertet
+- Aktualisierte Benutzer werden in Liste, Filter, Export und Statistik übernommen
+- Filter bleibt nach neuem Laden/Suchen aktiv
+- Zeilenumbruch im Hinweistext „Kein Benutzer ausgewählt"
+
+#### ⚡ Performance
+- Filter auf aktive Benutzer serverseitig statt clientseitig
+- Validierungsergebnisse werden zwischengespeichert (Filter, Statistik, ADSync-Prüfung)
+- Listen statt Array-`+=` bei großen Datenmengen
+- Forest-Domänen werden einmal pro Sitzung ermittelt
+- Ein wiederverwendeter Such-Timer statt eines neuen Timers pro Tastendruck
+
+#### 🔧 Verbesserungen
+- Neue ProxyAddresses werden auf Format und Eindeutigkeit im gesamten AD geprüft
+- Validierung erkennt doppelte und ungültige SMTP-Adressen
+- Warnungen werden auch bei kompatiblen Benutzern angezeigt
+- Validierungsstatus, Ja/Nein-Spalte und Filteranzeige lokalisiert (DE/EN)
+- Wartecursor bei AD-Abfragen
+- Befehle: `Refresh-CurrentUser` → `Update-CurrentUser` (genehmigtes Verb), keine Überschreibung der Automatik-Variablen `$Args`/`$sender`
 
 ### Version 1.0.0 (08.12.2025)
 
@@ -698,7 +739,7 @@ SOFTWARE.
 
 ## 📊 Statistiken
 
-- **Zeilen Code**: ~2700 Zeilen PowerShell
+- **Zeilen Code**: ~3000 Zeilen PowerShell
 - **Funktionen**: 40+ Funktionen
 - **Sprachen**: 2 (Deutsch, Englisch)
 - **Übersetzungen**: 60+ UI-Strings pro Sprache

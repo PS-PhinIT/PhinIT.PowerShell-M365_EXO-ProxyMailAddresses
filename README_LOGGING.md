@@ -86,13 +86,13 @@ Das Script ist vollständig PS2EXE-kompatibel:
 
 ```powershell
 # Empfohlene Kompilierung:
-ps2exe .\easyEXCH-PMA_V0.0.1.ps1 .\easyEXCH-PMA.exe `
+ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
     -noConsole `
     -STA `
     -x64 `
-    -iconFile .\icon.ico `
+    -iconFile .\icon.ico `   # optional, Icon-Datei ist nicht im Repository enthalten
     -title "easyEXCH ProxyAddress Manager" `
-    -version "0.0.1" `
+    -version "1.0.1" `
     -company "PhinIT.DE" `
     -copyright "© 2025 Andreas Hepp"
 ```
@@ -158,7 +158,7 @@ ps2exe .\easyEXCH-PMA_V0.0.1.ps1 .\easyEXCH-PMA.exe `
 ### Problem: Debug-Log zu groß
 **Lösung**: 
 ```powershell
-# Debug-Logging deaktivieren (Zeile 261 im Script)
+# Debug-Logging deaktivieren (Abschnitt "Logging-Konfiguration" im Script)
 $script:EnableDebugLogging = $false
 ```
 
@@ -167,5 +167,5 @@ $script:EnableDebugLogging = $false
 Bei Fragen oder Problemen:
 - **Autor**: Andreas Hepp
 - **Website**: www.PhinIT.DE
-- **Version**: 0.0.1
-- **Datum**: 2025-12-08
+- **Version**: 1.0.1
+- **Datum**: 2026-10-14

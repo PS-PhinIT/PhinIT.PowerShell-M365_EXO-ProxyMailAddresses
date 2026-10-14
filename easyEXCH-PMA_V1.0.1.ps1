@@ -6,11 +6,11 @@
     Lädt Benutzer aus lokalem AD, zeigt aktuelle ProxyAddresses und ermöglicht Hinzufügen/Ändern/Löschen.
     Prüft automatisch MS365 ADSync-Kompatibilität (berücksichtigt Legacy Exchange Attribute).
 .VERSION
-    1.0.0
+    1.0.1
 .AUTHOR
     Andreas Hepp  |  PhinIT.DE
 .DATE
-    2025-12-08
+    2026-10-14
 #>
 
 #Requires -Version 5.1
@@ -26,6 +26,22 @@ Add-Type -AssemblyName System.Windows.Forms
 
 # Visual Styles aktivieren (MUSS vor GUI-Erstellung erfolgen)
 [System.Windows.Forms.Application]::EnableVisualStyles()
+
+# Script-Version (zentral, wird in Logs verwendet)
+$script:AppVersion = "1.0.1"
+
+# ActiveDirectory-Modul prüfen und laden (Voraussetzung für alle AD-Befehle)
+try {
+    Import-Module ActiveDirectory -ErrorAction Stop
+} catch {
+    [System.Windows.MessageBox]::Show(
+        "Das PowerShell-Modul 'ActiveDirectory' konnte nicht geladen werden.`n`nBitte RSAT installieren:`nAdd-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0`n`nDetails: $($_.Exception.Message)",
+        "ActiveDirectory-Modul fehlt",
+        [System.Windows.MessageBoxButton]::OK,
+        [System.Windows.MessageBoxImage]::Error
+    ) | Out-Null
+    exit 1
+}
 
 # XAML Definition
 $xaml = @"
@@ -154,7 +170,7 @@ $xaml = @"
                             </Grid>
 
                             <!-- No Data Message -->
-                            <TextBlock Name="txtNoProxyData" Grid.Row="0" Text="Kein Benutzer ausgewählt.`nBitte wählen Sie einen Benutzer aus der Liste." 
+                            <TextBlock Name="txtNoProxyData" Grid.Row="0" Text="Kein Benutzer ausgewählt.&#x0a;Bitte wählen Sie einen Benutzer aus der Liste." 
                                        HorizontalAlignment="Center" VerticalAlignment="Center" 
                                        FontSize="14" Foreground="Gray" Visibility="Visible" TextAlignment="Center"/>
                         </Grid>
@@ -262,7 +278,7 @@ $xaml = @"
                 </Grid.ColumnDefinitions>
                 
                 <TextBlock Name="txtStatus" Text="Bereit" VerticalAlignment="Center" Grid.Column="0"/>
-                <TextBlock Text="Version 1.0.0 | Andreas Hepp  -  www.PhinIT.DE  2025" VerticalAlignment="Center" FontSize="10" Foreground="Gray" Grid.Column="1"/>
+                <TextBlock Text="Version 1.0.1 | Andreas Hepp  -  www.PhinIT.DE  2025" VerticalAlignment="Center" FontSize="10" Foreground="Gray" Grid.Column="1"/>
             </Grid>
         </Border>
     </Grid>
@@ -355,6 +371,7 @@ $script:LanguageStrings = @{
         ADSyncComplete = "ADSync-Prüfung abgeschlossen: {0}/{1} kompatibel"
         ProxyAddressAdded = "ProxyAddress erfolgreich hinzugefügt"
         ProxyAddressDeleted = "ProxyAddress erfolgreich gelöscht"
+        ProxyAddressUpdated = "ProxyAddress erfolgreich geändert"
         PrimarySMTPSet = "Primäre SMTP-Adresse erfolgreich gesetzt"
         UserRefreshed = "Benutzer aktualisiert"
         ExportComplete = "Export abgeschlossen: {0}"
@@ -368,6 +385,15 @@ $script:LanguageStrings = @{
         NoData = "Keine Daten"
         NoDataMessage = "Keine Benutzer geladen. Bitte laden Sie zuerst Benutzer."
         Close = "Schließen"
+        
+        # Validierung / Anzeige
+        ProblemsFound = "❌ Probleme gefunden"
+        ErrorsHeader = "FEHLER:"
+        WarningsHeader = "WARNUNGEN:"
+        NoProxyAddresses = "Keine ProxyAddresses vorhanden.`nFügen Sie eine hinzu."
+        FilterCount = "{0} von {1} Benutzer ({2})"
+        Yes = "Ja"
+        No = "Nein"
     }
     
     EN = @{
@@ -449,6 +475,7 @@ $script:LanguageStrings = @{
         ADSyncComplete = "ADSync check complete: {0}/{1} compatible"
         ProxyAddressAdded = "ProxyAddress successfully added"
         ProxyAddressDeleted = "ProxyAddress successfully deleted"
+        ProxyAddressUpdated = "ProxyAddress successfully updated"
         PrimarySMTPSet = "Primary SMTP address successfully set"
         UserRefreshed = "User refreshed"
         ExportComplete = "Export complete: {0}"
@@ -462,6 +489,15 @@ $script:LanguageStrings = @{
         NoData = "No Data"
         NoDataMessage = "No users loaded. Please load users first."
         Close = "Close"
+        
+        # Validation / Display
+        ProblemsFound = "❌ Issues found"
+        ErrorsHeader = "ERRORS:"
+        WarningsHeader = "WARNINGS:"
+        NoProxyAddresses = "No ProxyAddresses present.`nPlease add one."
+        FilterCount = "{0} of {1} users ({2})"
+        Yes = "Yes"
+        No = "No"
     }
 }
 
@@ -469,7 +505,7 @@ $script:LanguageStrings = @{
 function Get-LocalizedString {
     param(
         [string]$Key,
-        $Args  # Nicht typisiert, damit es flexibel ist
+        $FormatArgs  # Nicht typisiert, damit es flexibel ist ($Args ist eine Automatik-Variable)
     )
     
     try {
@@ -481,12 +517,12 @@ function Get-LocalizedString {
         }
         
         # Wenn keine Args übergeben wurden, Text direkt zurückgeben
-        if ($null -eq $Args) {
+        if ($null -eq $FormatArgs) {
             return $text
         }
         
         # Args in Array konvertieren wenn nötig
-        $argsArray = if ($Args -is [Array]) { $Args } else { @($Args) }
+        $argsArray = if ($FormatArgs -is [Array]) { $FormatArgs } else { @($FormatArgs) }
         
         # String formatieren
         try {
@@ -509,6 +545,11 @@ function Switch-Language {
     
     # UI-Texte aktualisieren
     Update-UILanguage
+    
+    # Angezeigten Benutzer (Validierungsstatus etc.) neu darstellen
+    if ($script:CurrentUser) {
+        Update-ProxyAddressDisplay
+    }
     
     # Button-Status aktualisieren
     if ($Language -eq "DE") {
@@ -607,11 +648,20 @@ if ($MyInvocation.MyCommand.CommandType -eq "ExternalScript") {
 # Globale Variablen
 $script:CurrentUser = $null
 $script:AllUsers = @()
-$script:MS365Domains = @()
+$script:DirectoryDomainsCache = $null
 $script:FilteredUsers = @()
 $script:CurrentFilter = "Alle"
+$script:ValidationCache = @{}
+$script:SearchTimer = $null
 $script:ExportFolder = Join-Path $script:ScriptPath "Exports"
 $script:HistoryFolder = Join-Path $script:ScriptPath "History"
+
+# Einheitliche AD-Attributliste für alle Benutzerabfragen
+$script:ADUserProperties = @(
+    'DisplayName', 'GivenName', 'Surname', 'Mail', 'SamAccountName', 'UserPrincipalName',
+    'ProxyAddresses', 'msExchRecipientTypeDetails', 'msExchRecipientDisplayType',
+    'mailNickname', 'targetAddress', 'legacyExchangeDN', 'DistinguishedName'
+)
 
 # Logging-Konfiguration
 $script:CurrentExecutingUser = $env:USERNAME
@@ -638,31 +688,189 @@ function Initialize-ExportFolders {
     }
 }
 
+# CSV-/Formel-Injection verhindern (Werte, die in Excel als Formel interpretiert würden)
+function ConvertTo-SafeCsvValue {
+    param($Value)
+    
+    if ($null -eq $Value) { return '' }
+    $text = [string]$Value
+    if ($text -match '^[=+\-@\t\r]') {
+        return "'" + $text
+    }
+    return $text
+}
+
+# Sonderzeichen für LDAP-Filter escapen (RFC 4515)
+function ConvertTo-LdapFilterValue {
+    param([string]$Value)
+    
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($char in $Value.ToCharArray()) {
+        switch ($char) {
+            '\'      { [void]$sb.Append('\5c') }
+            '*'      { [void]$sb.Append('\2a') }
+            '('      { [void]$sb.Append('\28') }
+            ')'      { [void]$sb.Append('\29') }
+            "`0"     { [void]$sb.Append('\00') }
+            default  { [void]$sb.Append($char) }
+        }
+    }
+    return $sb.ToString()
+}
+
+# Eindeutige Identität eines Benutzers (DN bevorzugt, Fallback SamAccountName)
+function Get-UserIdentity {
+    param([Parameter(Mandatory=$true)]$User)
+    
+    if ($User.DistinguishedName) { return [string]$User.DistinguishedName }
+    return [string]$User.SamAccountName
+}
+
+# Aktuelle ProxyAddresses frisch aus dem AD lesen (als String-Array)
+function Get-CurrentProxyAddresses {
+    param([Parameter(Mandatory=$true)]$User)
+    
+    $adUser = Get-ADUser -Identity (Get-UserIdentity -User $User) -Properties ProxyAddresses -ErrorAction Stop
+    # Komma-Operator verhindert das Entpacken (leeres/einelementiges Array bleibt ein Array)
+    return ,([string[]]@($adUser.ProxyAddresses | ForEach-Object { [string]$_ }))
+}
+
+# Validierungsergebnis eines Benutzers (mit Cache für Performance)
+function Get-UserValidation {
+    param([Parameter(Mandatory=$true)]$User)
+    
+    $key = Get-UserIdentity -User $User
+    if (-not $key) {
+        return Test-UserMS365Compatibility -User $User
+    }
+    if (-not $script:ValidationCache.ContainsKey($key)) {
+        $script:ValidationCache[$key] = Test-UserMS365Compatibility -User $User
+    }
+    return $script:ValidationCache[$key]
+}
+
+# Format einer neuen ProxyAddress prüfen - gibt Fehlermeldung oder $null zurück
+function Test-NewProxyAddressFormat {
+    param([string]$ProxyAddress)
+    
+    if ([string]::IsNullOrWhiteSpace($ProxyAddress)) {
+        return "ProxyAddress darf nicht leer sein"
+    }
+    
+    if ($ProxyAddress -notmatch '^([A-Za-z0-9]+):(.+)$') {
+        return "Ungültiges Format. Erwartet: TYP:adresse (z.B. smtp:user@domain.com)"
+    }
+    
+    $type = $matches[1]
+    $address = $matches[2]
+    
+    switch -Regex ($type) {
+        '^(smtp|sip)$' {
+            if ($address -match '\s') {
+                return "Die Adresse darf keine Leerzeichen enthalten"
+            }
+            if ($address -notmatch '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' -or $address.Length -gt 254) {
+                return "Ungültige E-Mail-Adresse: $address"
+            }
+        }
+        '^x500$' {
+            if ($address -notmatch '^/o=') {
+                return "Ungültige X500-Adresse. Erwartet wird ein Exchange-DN (z.B. /o=ExchangeLabs/ou=...)"
+            }
+        }
+    }
+    
+    return $null
+}
+
+# Prüfen ob eine ProxyAddress bereits von einem anderen AD-Objekt verwendet wird
+# (Doppelte ProxyAddresses verursachen ADSync-Fehler "AttributeValueMustBeUnique")
+function Get-ProxyAddressConflict {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ProxyAddress,
+        [string]$ExcludeDistinguishedName
+    )
+    
+    # Vergleich im AD ist case-insensitive (SMTP:/smtp: derselben Adresse gelten als gleich)
+    $ldapFilter = "(proxyAddresses=$(ConvertTo-LdapFilterValue -Value $ProxyAddress))"
+    
+    $objects = $null
+    try {
+        # Gesamter Forest über den Global Catalog
+        $forestName = (Get-ADForest -ErrorAction Stop).Name
+        $objects = @(Get-ADObject -LDAPFilter $ldapFilter -Server "$($forestName):3268" -SearchBase "" -ErrorAction Stop)
+    } catch {
+        Write-Log -Message "GC-Abfrage fehlgeschlagen, verwende aktuelle Domäne: $($_.Exception.Message)" -Level DEBUG -Source "ProxyAddress"
+        $objects = @(Get-ADObject -LDAPFilter $ldapFilter -ErrorAction Stop)
+    }
+    
+    $conflict = $objects | Where-Object { $_.DistinguishedName -ne $ExcludeDistinguishedName } | Select-Object -First 1
+    return $conflict
+}
+
+# ProxyAddresses (und optional Mail) in EINER AD-Operation schreiben (atomar)
+function Set-UserProxyAddressList {
+    param(
+        [Parameter(Mandatory=$true)]
+        $User,
+        [AllowEmptyCollection()]
+        [string[]]$ProxyAddresses,
+        [string]$Mail
+    )
+    
+    $identity = Get-UserIdentity -User $User
+    $replace = @{}
+    $clear = @()
+    
+    if ($ProxyAddresses -and $ProxyAddresses.Count -gt 0) {
+        $replace['proxyAddresses'] = [string[]]$ProxyAddresses
+    } else {
+        $clear += 'proxyAddresses'
+    }
+    
+    if ($PSBoundParameters.ContainsKey('Mail') -and -not [string]::IsNullOrWhiteSpace($Mail)) {
+        $replace['mail'] = $Mail
+    }
+    
+    $params = @{ Identity = $identity; ErrorAction = 'Stop' }
+    if ($replace.Count -gt 0) { $params['Replace'] = $replace }
+    if ($clear.Count -gt 0) { $params['Clear'] = $clear }
+    
+    Set-ADUser @params
+}
+
 # ProxyAddresses exportieren (automatisch vor Änderungen)
 function Export-ProxyAddressHistory {
     param(
         [Parameter(Mandatory=$true)]
         $User,
-        [string]$Action = "Backup"
+        [string]$Action = "Backup",
+        # Optional: aktueller (frisch gelesener) Stand; Standard = zwischengespeicherter Stand
+        [string[]]$ProxyAddresses
     )
     
     try {
+        if (-not $PSBoundParameters.ContainsKey('ProxyAddresses')) {
+            $ProxyAddresses = [string[]]@($User.ProxyAddresses)
+        }
+        
         $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
         $fileName = "$($User.SamAccountName)_$timestamp.csv"
         $filePath = Join-Path $script:HistoryFolder $fileName
+        $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         
-        $exportData = @()
-        if ($User.ProxyAddresses) {
-            foreach ($proxy in $User.ProxyAddresses) {
-                $exportData += [PSCustomObject]@{
-                    Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                    Action = $Action
-                    User = $User.SamAccountName
-                    DisplayName = $User.DisplayName
-                    ProxyAddress = $proxy
-                    ExecutedBy = $env:USERNAME
-                }
-            }
+        $exportData = New-Object System.Collections.Generic.List[object]
+        $values = if ($ProxyAddresses -and $ProxyAddresses.Count -gt 0) { $ProxyAddresses } else { @('(keine)') }
+        foreach ($proxy in $values) {
+            $exportData.Add([PSCustomObject]@{
+                Timestamp = $now
+                Action = $Action
+                User = $User.SamAccountName
+                DisplayName = ConvertTo-SafeCsvValue $User.DisplayName
+                ProxyAddress = ConvertTo-SafeCsvValue $proxy
+                ExecutedBy = $env:USERNAME
+            })
         }
         
         $exportData | Export-Csv -Path $filePath -NoTypeInformation -Encoding UTF8
@@ -699,7 +907,7 @@ function Show-Statistics {
         $x500Addresses = 0
         
         foreach ($user in $Users) {
-            $validation = Test-UserMS365Compatibility -User $user
+            $validation = Get-UserValidation -User $user
             
             if ($validation.IsValid) {
                 $validUsers++
@@ -712,13 +920,17 @@ function Show-Statistics {
             }
             
             if ($user.ProxyAddresses) {
-                $totalProxyAddresses += $user.ProxyAddresses.Count
-                $primarySMTP += @($user.ProxyAddresses | Where-Object { $_ -cmatch '^SMTP:' }).Count
-                $secondarySMTP += @($user.ProxyAddresses | Where-Object { $_ -cmatch '^smtp:' }).Count
-                $sipAddresses += @($user.ProxyAddresses | Where-Object { $_ -match '^SIP:' }).Count
-                $x500Addresses += @($user.ProxyAddresses | Where-Object { $_ -match '^X500:' }).Count
+                foreach ($proxy in $user.ProxyAddresses) {
+                    $totalProxyAddresses++
+                    if ($proxy -cmatch '^SMTP:') { $primarySMTP++ }
+                    elseif ($proxy -cmatch '^smtp:') { $secondarySMTP++ }
+                    elseif ($proxy -match '^SIP:') { $sipAddresses++ }
+                    elseif ($proxy -match '^X500:') { $x500Addresses++ }
+                }
             }
         }
+        
+        $averageProxy = if ($totalUsers -gt 0) { [math]::Round($totalProxyAddresses / $totalUsers, 2) } else { 0 }
         
         # Statistik-Fenster
         $statsWindow = New-Object System.Windows.Window
@@ -770,7 +982,7 @@ Ohne ProxyAddresses:       $usersWithoutProxy
 📧 PROXYADDRESS-STATISTIKEN
 ═══════════════════════════════════════
 Gesamt ProxyAddresses:     $totalProxyAddresses
-Durchschnitt pro Benutzer: $([math]::Round($totalProxyAddresses / $totalUsers, 2))
+Durchschnitt pro Benutzer: $averageProxy
 
 SMTP: (Primär):            $primarySMTP
 smtp: (Sekundär):          $secondarySMTP
@@ -831,8 +1043,12 @@ function Show-UserHistory {
     try {
         Write-Log -Message "Lade History für $($User.SamAccountName)" -Level INFO -Source "History"
         
-        # History-Dateien für diesen Benutzer suchen
-        $historyFiles = @(Get-ChildItem -Path $script:HistoryFolder -Filter "$($User.SamAccountName)_*.csv" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+        # History-Dateien für diesen Benutzer suchen (exakter Namensabgleich,
+        # damit z.B. "max" nicht die Dateien von "max_muster" anzeigt)
+        $historyPattern = '^' + [regex]::Escape([string]$User.SamAccountName) + '_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.csv$'
+        $historyFiles = @(Get-ChildItem -Path $script:HistoryFolder -Filter "$($User.SamAccountName)_*.csv" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match $historyPattern } |
+            Sort-Object LastWriteTime -Descending)
         
         if ($historyFiles.Count -eq 0) {
             [System.Windows.MessageBox]::Show(
@@ -876,10 +1092,11 @@ function Show-UserHistory {
         $grid.Children.Add($header)
         
         # Alle History-Einträge laden und kombinieren
-        $allHistory = @()
+        $allHistory = New-Object System.Collections.Generic.List[object]
         foreach ($file in $historyFiles) {
-            $entries = Import-Csv -Path $file.FullName -Encoding UTF8
-            $allHistory += $entries
+            foreach ($entry in @(Import-Csv -Path $file.FullName -Encoding UTF8)) {
+                $allHistory.Add($entry)
+            }
         }
         
         # DataGrid
@@ -957,18 +1174,18 @@ function Export-AllProxyAddresses {
         $fileName = "ProxyAddresses_Export_$timestamp.csv"
         $filePath = Join-Path $script:ExportFolder $fileName
         
-        $exportData = @()
+        $exportData = New-Object System.Collections.Generic.List[object]
         foreach ($user in $Users) {
             if ($user.ProxyAddresses) {
                 foreach ($proxy in $user.ProxyAddresses) {
-                    $exportData += [PSCustomObject]@{
-                        DisplayName = $user.DisplayName
-                        SamAccountName = $user.SamAccountName
-                        Mail = $user.Mail
-                        ProxyAddress = $proxy
+                    $exportData.Add([PSCustomObject]@{
+                        DisplayName = ConvertTo-SafeCsvValue $user.DisplayName
+                        SamAccountName = ConvertTo-SafeCsvValue $user.SamAccountName
+                        Mail = ConvertTo-SafeCsvValue $user.Mail
+                        ProxyAddress = ConvertTo-SafeCsvValue $proxy
                         Type = if ($proxy -match '^([A-Za-z0-9]+):') { $matches[1] } else { "Unknown" }
-                        IsPrimary = if ($proxy -cmatch '^[A-Z]+:') { "Ja" } else { "Nein" }
-                    }
+                        IsPrimary = if ($proxy -cmatch '^[A-Z0-9]+:') { "Ja" } else { "Nein" }
+                    })
                 }
             }
         }
@@ -1031,7 +1248,7 @@ function Initialize-LogFolder {
 easyEXCH ProxyAddress Manager - Logging Session
 ================================================================================
 Session Start: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-Script Version: 1.0.0
+Script Version: $script:AppVersion
 Ausführender Benutzer: $script:CurrentExecutingUser@$domain
 Computer: $computer
 PowerShell Version: $psVersion
@@ -1218,16 +1435,13 @@ function Get-ADUsersWithProxy {
         
         Write-Status -Message (Get-LocalizedString "LoadingUsers") -Level INFO
         
-        # Filter setzen - wenn keiner übergeben wurde, alle nehmen
-        $adFilter = if ($Filter) { $Filter } else { '*' }
+        # Nur aktive Benutzer - Filterung serverseitig (deutlich schneller als clientseitig)
+        $adFilter = if ($Filter) { "($Filter) -and (Enabled -eq `$true)" } else { 'Enabled -eq $true' }
         
         $params = @{
             Filter = $adFilter
-            Properties = @(
-                'DisplayName', 'GivenName', 'Surname', 'Mail', 'SamAccountName', 'UserPrincipalName',
-                'ProxyAddresses', 'msExchRecipientTypeDetails', 'msExchRecipientDisplayType',
-                'mailNickname', 'targetAddress', 'legacyExchangeDN'
-            )
+            Properties = $script:ADUserProperties
+            ErrorAction = 'Stop'
         }
         
         if ($DomainController) {
@@ -1238,23 +1452,11 @@ function Get-ADUsersWithProxy {
             $params['SearchBase'] = $SearchBase
         }
         
-        $users = @(Get-ADUser @params | Where-Object {
-            $_.Enabled -eq $true
-        } | Select-Object DisplayName, GivenName, Surname, Mail, SamAccountName, UserPrincipalName, 
-                          ProxyAddresses, msExchRecipientTypeDetails, msExchRecipientDisplayType,
-                          mailNickname, targetAddress, legacyExchangeDN, DistinguishedName)
-        
-        # Sichere Count-Ermittlung
-        if ($users -is [Array]) {
-            $userCount = $users.Count
-        } elseif ($users) {
-            $userCount = 1
-        } else {
-            $userCount = 0
-        }
+        $users = @(Get-ADUser @params | Select-Object -Property $script:ADUserProperties)
+        $userCount = $users.Count
         
         Write-Log -Message "AD-Benutzer-Abfrage abgeschlossen: $userCount Benutzer gefunden" -Level INFO -Source "AD-Query"
-        Write-Status -Message (Get-LocalizedString "UsersLoaded" -Args @($userCount)) -Level SUCCESS
+        Write-Status -Message (Get-LocalizedString "UsersLoaded" -FormatArgs @($userCount)) -Level SUCCESS
         return $users
         
     } catch {
@@ -1272,7 +1474,7 @@ function Search-ADUsers {
     
     try {
         Write-Log -Message "Suche nach '$SearchTerm'" -Level DEBUG -Source "Search"
-        Write-Status -Message (Get-LocalizedString "SearchingFor" -Args @($SearchTerm)) -Level INFO
+        Write-Status -Message (Get-LocalizedString "SearchingFor" -FormatArgs @($SearchTerm)) -Level INFO
         
         # Wildcard für Suche
         $wildcard = "*$SearchTerm*"
@@ -1289,16 +1491,12 @@ function Search-ADUsers {
                 (SamAccountName -like $wildcard) -or
                 (UserPrincipalName -like $wildcard)
             )
-        } -Properties DisplayName, GivenName, Surname, Mail, SamAccountName, UserPrincipalName, 
-                       ProxyAddresses, msExchRecipientTypeDetails, msExchRecipientDisplayType,
-                       mailNickname, targetAddress, legacyExchangeDN, DistinguishedName | 
-        Select-Object DisplayName, GivenName, Surname, Mail, SamAccountName, UserPrincipalName, 
-                      ProxyAddresses, msExchRecipientTypeDetails, msExchRecipientDisplayType,
-                      mailNickname, targetAddress, legacyExchangeDN, DistinguishedName)
+        } -Properties $script:ADUserProperties -ErrorAction Stop |
+        Select-Object -Property $script:ADUserProperties)
         
         $userCount = $users.Count
         Write-Log -Message "Suche abgeschlossen: $userCount Benutzer gefunden (Array mit $($users.Count) Elementen)" -Level INFO -Source "Search"
-        Write-Status -Message (Get-LocalizedString "UsersFoundCount" -Args @($userCount)) -Level SUCCESS
+        Write-Status -Message (Get-LocalizedString "UsersFoundCount" -FormatArgs @($userCount)) -Level SUCCESS
         
         # Explizit als Array zurückgeben
         return @($users)
@@ -1323,7 +1521,7 @@ function Get-ParsedProxyAddresses {
         $User
     )
     
-    $proxyList = @()
+    $proxyList = New-Object System.Collections.Generic.List[object]
     
     if ($User.ProxyAddresses) {
         foreach ($proxy in $User.ProxyAddresses) {
@@ -1343,32 +1541,32 @@ function Get-ParsedProxyAddresses {
             }
             
             # Validierung
-            $validationStatus = Test-ProxyAddressMS365Compatibility -ProxyAddress $proxy -User $User
+            $validationStatus = Test-ProxyAddressMS365Compatibility -ProxyAddress $proxy
             
-            $proxyList += [PSCustomObject]@{
+            $proxyList.Add([PSCustomObject]@{
                 FullAddress = $proxy
                 Type = $type
                 Address = $address
-                IsPrimary = if ($isPrimary) { "Ja" } else { "Nein" }
+                IsPrimary = if ($isPrimary) { Get-LocalizedString "Yes" } else { Get-LocalizedString "No" }
+                IsPrimaryFlag = $isPrimary
                 ValidationStatus = $validationStatus
-            }
+            })
         }
     }
     
-    return $proxyList
+    return ,$proxyList.ToArray()
 }
 
 # MS365 Kompatibilität prüfen
 function Test-ProxyAddressMS365Compatibility {
     param(
-        [string]$ProxyAddress,
-        $User
+        [string]$ProxyAddress
     )
     
     $issues = @()
     
-    # SMTP-Adressen prüfen
-    if ($ProxyAddress -match '^smtp:(.+)$' -or $ProxyAddress -match '^SMTP:(.+)$') {
+    # SMTP-Adressen prüfen (-match ist case-insensitive: SMTP: und smtp:)
+    if ($ProxyAddress -match '^smtp:(.+)$') {
         $emailAddress = $matches[1]
         
         # E-Mail Format prüfen
@@ -1420,9 +1618,10 @@ function Test-UserMS365Compatibility {
     if (-not $User.ProxyAddresses -or $User.ProxyAddresses.Count -eq 0) {
         $issues += "Keine ProxyAddresses definiert"
     } else {
-        # 2. Primäre SMTP-Adresse vorhanden?
-        $primarySMTP = $User.ProxyAddresses | Where-Object { $_ -cmatch '^SMTP:' }
-        if (-not $primarySMTP) {
+        # 2. Primäre SMTP-Adresse vorhanden? (@() erzwingt Array - sonst liefert [0] bei
+        #    genau einer Adresse nur das erste ZEICHEN des Strings)
+        $primarySMTP = @($User.ProxyAddresses | Where-Object { $_ -cmatch '^SMTP:' })
+        if ($primarySMTP.Count -eq 0) {
             $issues += "Keine primäre SMTP-Adresse (SMTP: Großbuchstaben)"
         }
         
@@ -1432,11 +1631,27 @@ function Test-UserMS365Compatibility {
         }
         
         # 4. Mail-Attribut stimmt mit primärer SMTP überein?
-        if ($primarySMTP -and $User.Mail) {
-            $primaryAddress = ($primarySMTP[0] -replace '^SMTP:', '')
+        if ($primarySMTP.Count -gt 0 -and $User.Mail) {
+            $primaryAddress = ([string]$primarySMTP[0] -replace '^SMTP:', '')
             if ($primaryAddress -ne $User.Mail) {
                 $warnings += "Mail-Attribut ($($User.Mail)) stimmt nicht mit primärer SMTP-Adresse ($primaryAddress) überein"
             }
+        }
+        
+        # 4a. Ungültige SMTP-Adressen (werden von ADSync/Exchange Online abgelehnt)
+        # 4b. Doppelte Einträge (case-insensitive)
+        $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $duplicates = @()
+        foreach ($proxy in $User.ProxyAddresses) {
+            if ($proxy -match '^smtp:' -and (Test-ProxyAddressMS365Compatibility -ProxyAddress $proxy) -like '❌*') {
+                $issues += "Ungültige SMTP-Adresse: $proxy"
+            }
+            if (-not $seen.Add([string]$proxy)) {
+                $duplicates += [string]$proxy
+            }
+        }
+        if ($duplicates.Count -gt 0) {
+            $issues += "Doppelte ProxyAddresses: " + ($duplicates -join ', ')
         }
     }
     
@@ -1472,86 +1687,66 @@ function Test-UserMS365Compatibility {
 
 # AD-Domänen auslesen (nur öffentliche TLDs)
 function Get-ADAcceptedDomains {
-    try {
-        # Liste der lokalen/internen TLDs die gefiltert werden sollen
-        $localTLDs = @(
-            # Deutsch
-            'local', 'loc', 'lokal', 'intern', 'internal', 'int', 'lan', 'intranet',
-            
-            # Englisch
-            'localhost', 'localdomain', 'home', 'private', 'corp', 'corporate',
-            'company', 'domain', 'test', 'testing', 'dev', 'development',
-            'prod', 'production', 'stage', 'staging', 'lab', 'demo',
-            
-            # Weitere typische interne
-            'ad', 'ds', 'office', 'exchange', 'mail', 'smtp',
-            'workgroup', 'site', 'network', 'net-local'
-        )
+    # Liste der lokalen/internen TLDs die gefiltert werden sollen
+    # (echte öffentliche TLDs wie .dev, .prod, .site, .network, .company, .office, .exchange, .ad
+    #  werden bewusst NICHT gefiltert)
+    $localTLDs = @(
+        # Deutsch
+        'local', 'loc', 'lokal', 'intern', 'internal', 'int', 'lan', 'intranet',
         
-        $upnSuffixes = @()
+        # Englisch
+        'localhost', 'localdomain', 'home', 'private', 'corp', 'corporate',
+        'domain', 'test', 'testing', 'development',
+        'production', 'stage', 'staging', 'lab', 'demo',
         
-        # Alle UPN-Suffixe aus der AD-Konfiguration
-        $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
-        $rootDomain = $forest.RootDomain.Name
-        
-        # Nur hinzufügen wenn öffentliche TLD
-        if ($rootDomain -match '\.([^.]+)$') {
-            $tld = $matches[1].ToLower()
-            if ($tld -notin $localTLDs) {
-                $upnSuffixes += $rootDomain
-            }
-        }
-        
-        # Zusätzliche UPN-Suffixe
-        $configPath = "CN=Partitions,CN=Configuration," + ([ADSI]"LDAP://RootDSE").defaultNamingContext
-        $searcher = New-Object System.DirectoryServices.DirectorySearcher
-        $searcher.SearchRoot = [ADSI]"LDAP://$configPath"
-        $searcher.Filter = "(objectClass=crossRef)"
-        $searcher.PropertiesToLoad.Add("dnsRoot") | Out-Null
-        
-        $results = $searcher.FindAll()
-        foreach ($result in $results) {
-            $dnsRoot = $result.Properties["dnsRoot"]
-            if ($dnsRoot) {
-                # Prüfe ob öffentliche TLD
-                if ($dnsRoot -match '\.([^.]+)$') {
-                    $tld = $matches[1].ToLower()
-                    if ($tld -notin $localTLDs -and $dnsRoot -notin $upnSuffixes) {
-                        $upnSuffixes += $dnsRoot
-                    }
-                }
-            }
-        }
-        
-        # Zusätzlich: Alle einzigartigen Domänen aus bestehenden ProxyAddresses extrahieren
-        if ($script:AllUsers) {
-            foreach ($user in $script:AllUsers) {
-                if ($user.ProxyAddresses) {
-                    foreach ($proxy in $user.ProxyAddresses) {
-                        if ($proxy -match '@(.+)$') {
-                            $domain = $matches[1]
-                            
-                            # Prüfe ob öffentliche TLD
-                            if ($domain -match '\.([^.]+)$') {
-                                $tld = $matches[1].ToLower()
-                                if ($tld -notin $localTLDs -and $domain -notin $upnSuffixes) {
-                                    $upnSuffixes += $domain
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        Write-Log -Message "Öffentliche Domänen gefunden: $($upnSuffixes.Count) (lokale TLDs gefiltert)" -Level DEBUG -Source "Domains"
-        return $upnSuffixes | Sort-Object
-        
-    } catch {
-        Write-Log -Message "Fehler beim Auslesen der AD-Domänen: $($_.Exception.Message)" -Level WARNING -Source "Domains"
-        # Fallback: Leeres Array
-        return @()
+        # Weitere typische interne
+        'ds', 'mail', 'smtp', 'workgroup', 'net-local', 'invalid', 'example'
+    )
+    
+    $isPublicDomain = {
+        param([string]$Name)
+        if ([string]::IsNullOrWhiteSpace($Name)) { return $false }
+        if ($Name -notmatch '\.([^.]+)$') { return $false }
+        return ($matches[1].ToLower() -notin $localTLDs)
     }
+    
+    # Forest-Domänen und UPN-Suffixe nur einmal pro Sitzung ermitteln (Performance)
+    if ($null -eq $script:DirectoryDomainsCache) {
+        $directoryDomains = New-Object System.Collections.Generic.List[string]
+        try {
+            $forest = Get-ADForest -ErrorAction Stop
+            foreach ($name in @($forest.RootDomain) + @($forest.Domains) + @($forest.UPNSuffixes)) {
+                $name = [string]$name
+                if ((& $isPublicDomain $name) -and -not ($directoryDomains -contains $name)) {
+                    $directoryDomains.Add($name)
+                }
+            }
+            $script:DirectoryDomainsCache = $directoryDomains.ToArray()
+        } catch {
+            Write-Log -Message "Fehler beim Auslesen der AD-Domänen: $($_.Exception.Message)" -Level WARNING -Source "Domains"
+            $script:DirectoryDomainsCache = @()
+        }
+    }
+    
+    $domains = New-Object System.Collections.Generic.List[string]
+    foreach ($name in $script:DirectoryDomainsCache) { $domains.Add($name) }
+    
+    # Zusätzlich: Alle einzigartigen Domänen aus bestehenden SMTP-ProxyAddresses
+    if ($script:AllUsers) {
+        foreach ($user in $script:AllUsers) {
+            foreach ($proxy in @($user.ProxyAddresses)) {
+                if ([string]$proxy -match '^smtp:[^@]+@(.+)$') {
+                    $domain = $matches[1]
+                    if ((& $isPublicDomain $domain) -and -not ($domains -contains $domain)) {
+                        $domains.Add($domain)
+                    }
+                }
+            }
+        }
+    }
+    
+    Write-Log -Message "Öffentliche Domänen gefunden: $($domains.Count) (lokale TLDs gefiltert)" -Level DEBUG -Source "Domains"
+    return ,[string[]]@($domains | Sort-Object)
 }
 
 # ProxyAddress hinzufügen
@@ -1565,47 +1760,148 @@ function Add-ProxyAddressToUser {
     
     try {
         # Validierung
-        if ([string]::IsNullOrWhiteSpace($ProxyAddress)) {
-            throw "ProxyAddress darf nicht leer sein"
+        $formatError = Test-NewProxyAddressFormat -ProxyAddress $ProxyAddress
+        if ($formatError) {
+            throw $formatError
         }
         
-        # Format prüfen
-        if ($ProxyAddress -notmatch '^[A-Za-z0-9]+:.+$') {
-            throw "Ungültiges Format. Erwartet: TYP:adresse (z.B. smtp:user@domain.com)"
-        }
+        # Aktuellen Stand frisch aus dem AD lesen
+        $currentProxies = Get-CurrentProxyAddresses -User $User
         
-        # Prüfen ob bereits vorhanden
-        $existingProxy = Get-ADUser -Identity $User.SamAccountName -Properties ProxyAddresses | Select-Object -ExpandProperty ProxyAddresses
-        if ($existingProxy -contains $ProxyAddress) {
+        # Prüfen ob bereits vorhanden (case-insensitive wie im AD)
+        if ($currentProxies | Where-Object { $_ -ieq $ProxyAddress }) {
             throw "Diese ProxyAddress ist bereits vorhanden"
         }
         
-        # Wenn primäre SMTP-Adresse (SMTP:), alte primäre zu sekundärer machen
-        if ($ProxyAddress -cmatch '^SMTP:') {
-            $oldPrimary = $existingProxy | Where-Object { $_ -cmatch '^SMTP:' }
-            if ($oldPrimary) {
-                # Alte primäre zu sekundärer konvertieren
-                $newSecondary = $oldPrimary -replace '^SMTP:', 'smtp:'
-                Set-ADUser -Identity $User.SamAccountName -Remove @{ProxyAddresses=$oldPrimary}
-                Set-ADUser -Identity $User.SamAccountName -Add @{ProxyAddresses=$newSecondary}
-            }
+        # Prüfen ob ein anderes AD-Objekt die Adresse bereits verwendet (ADSync-Konflikt)
+        $conflict = Get-ProxyAddressConflict -ProxyAddress $ProxyAddress -ExcludeDistinguishedName $User.DistinguishedName
+        if ($conflict) {
+            throw "Diese ProxyAddress wird bereits von einem anderen AD-Objekt verwendet:`n$($conflict.DistinguishedName)"
         }
         
-        # History-Export vor Änderung
-        Export-ProxyAddressHistory -User $User -Action "Vor Hinzufügen" | Out-Null
+        $newList = New-Object System.Collections.Generic.List[string]
+        $newMail = $null
+        $oldPrimary = $null
         
-        # Neue ProxyAddress hinzufügen
-        Set-ADUser -Identity $User.SamAccountName -Add @{ProxyAddresses=$ProxyAddress}
+        foreach ($proxy in $currentProxies) {
+            # Bei neuer primärer SMTP-Adresse: alte primäre zu sekundärer machen
+            if ($ProxyAddress -cmatch '^SMTP:' -and $proxy -cmatch '^SMTP:') {
+                $oldPrimary = $proxy
+                $newList.Add(($proxy -creplace '^SMTP:', 'smtp:'))
+            } else {
+                $newList.Add($proxy)
+            }
+        }
+        $newList.Add($ProxyAddress)
+        
+        if ($ProxyAddress -cmatch '^SMTP:(.+)$') {
+            $newMail = $matches[1]
+        }
+        
+        # History-Export VOR der Änderung (aktueller AD-Stand)
+        Export-ProxyAddressHistory -User $User -Action "Vor Hinzufügen" -ProxyAddresses $currentProxies | Out-Null
+        
+        # Änderung in einer einzigen (atomaren) AD-Operation schreiben
+        if ($newMail) {
+            Set-UserProxyAddressList -User $User -ProxyAddresses $newList.ToArray() -Mail $newMail
+        } else {
+            Set-UserProxyAddressList -User $User -ProxyAddresses $newList.ToArray()
+        }
         
         # Änderung protokollieren
-        Write-UserChangeLog -Action "ProxyAddress HINZUGEFÜGT" -TargetUser $User -ProxyAddress $ProxyAddress -Details "ProxyAddress wurde erfolgreich hinzugefügt"
+        $details = "ProxyAddress wurde erfolgreich hinzugefügt"
+        if ($oldPrimary) {
+            $details += ". Alte primäre Adresse ($oldPrimary) wurde zu sekundärer Adresse; Mail-Attribut aktualisiert"
+        }
+        Write-UserChangeLog -Action "ProxyAddress HINZUGEFÜGT" -TargetUser $User -ProxyAddress $ProxyAddress -OldValue $oldPrimary -Details $details
         
         Write-Status -Message (Get-LocalizedString "ProxyAddressAdded") -Level SUCCESS
         return $true
         
     } catch {
         Write-Status -Message "Fehler beim Hinzufügen: $($_.Exception.Message)" -Level ERROR
-        [System.Windows.MessageBox]::Show("Fehler beim Hinzufügen der ProxyAddress:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        [System.Windows.MessageBox]::Show("Fehler beim Hinzufügen der ProxyAddress:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error) | Out-Null
+        return $false
+    }
+}
+
+# ProxyAddress bearbeiten (Ersetzen in einer atomaren Operation)
+function Update-ProxyAddressOfUser {
+    param(
+        [Parameter(Mandatory=$true)]
+        $User,
+        [Parameter(Mandatory=$true)]
+        [string]$OldProxyAddress,
+        [Parameter(Mandatory=$true)]
+        [string]$NewProxyAddress
+    )
+    
+    try {
+        $formatError = Test-NewProxyAddressFormat -ProxyAddress $NewProxyAddress
+        if ($formatError) {
+            throw $formatError
+        }
+        
+        $currentProxies = Get-CurrentProxyAddresses -User $User
+        
+        if (-not ($currentProxies | Where-Object { $_ -ceq $OldProxyAddress })) {
+            throw "Die ursprüngliche ProxyAddress '$OldProxyAddress' ist im AD nicht mehr vorhanden. Bitte aktualisieren."
+        }
+        
+        # Duplikat innerhalb des Benutzers (außer der zu ersetzenden Adresse)
+        if ($currentProxies | Where-Object { $_ -cne $OldProxyAddress -and $_ -ieq $NewProxyAddress }) {
+            throw "Diese ProxyAddress ist bereits vorhanden"
+        }
+        
+        # Konflikt mit anderen AD-Objekten nur prüfen, wenn sich die Adresse (nicht nur die Schreibweise) ändert
+        if ($NewProxyAddress -ine $OldProxyAddress) {
+            $conflict = Get-ProxyAddressConflict -ProxyAddress $NewProxyAddress -ExcludeDistinguishedName $User.DistinguishedName
+            if ($conflict) {
+                throw "Diese ProxyAddress wird bereits von einem anderen AD-Objekt verwendet:`n$($conflict.DistinguishedName)"
+            }
+        }
+        
+        # Primäre SMTP-Adresse würde entfernt -> bestätigen lassen
+        if ($OldProxyAddress -cmatch '^SMTP:' -and $NewProxyAddress -cnotmatch '^SMTP:') {
+            $result = [System.Windows.MessageBox]::Show(
+                "Die primäre SMTP-Adresse wird geändert, ohne dass eine neue primäre Adresse gesetzt wird.`n`nWARNUNG: Der Benutzer hat dann keine primäre E-Mail-Adresse mehr!`n`nFortfahren?",
+                "Primäre Adresse ändern?",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Warning
+            )
+            if ($result -ne [System.Windows.MessageBoxResult]::Yes) {
+                return $false
+            }
+        }
+        
+        $newList = New-Object System.Collections.Generic.List[string]
+        foreach ($proxy in $currentProxies) {
+            if ($proxy -ceq $OldProxyAddress) {
+                $newList.Add($NewProxyAddress)
+            } elseif ($NewProxyAddress -cmatch '^SMTP:' -and $proxy -cmatch '^SMTP:') {
+                # Neue primäre Adresse -> bisherige primäre wird sekundär
+                $newList.Add(($proxy -creplace '^SMTP:', 'smtp:'))
+            } else {
+                $newList.Add($proxy)
+            }
+        }
+        
+        Export-ProxyAddressHistory -User $User -Action "Vor Bearbeiten" -ProxyAddresses $currentProxies | Out-Null
+        
+        if ($NewProxyAddress -cmatch '^SMTP:(.+)$') {
+            Set-UserProxyAddressList -User $User -ProxyAddresses $newList.ToArray() -Mail $matches[1]
+        } else {
+            Set-UserProxyAddressList -User $User -ProxyAddresses $newList.ToArray()
+        }
+        
+        Write-UserChangeLog -Action "ProxyAddress BEARBEITET" -TargetUser $User -ProxyAddress $NewProxyAddress -OldValue $OldProxyAddress -NewValue $NewProxyAddress -Details "ProxyAddress wurde geändert"
+        
+        Write-Status -Message (Get-LocalizedString "ProxyAddressUpdated") -Level SUCCESS
+        return $true
+        
+    } catch {
+        Write-Status -Message "Fehler beim Bearbeiten: $($_.Exception.Message)" -Level ERROR
+        [System.Windows.MessageBox]::Show("Fehler beim Bearbeiten der ProxyAddress:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error) | Out-Null
         return $false
     }
 }
@@ -1620,7 +1916,7 @@ function Remove-ProxyAddressFromUser {
     )
     
     try {
-        # Primäre SMTP-Adresse darf nicht gelöscht werden
+        # Primäre SMTP-Adresse nur nach zusätzlicher Bestätigung löschen
         if ($ProxyAddress -cmatch '^SMTP:') {
             $result = [System.Windows.MessageBox]::Show(
                 "Dies ist die primäre SMTP-Adresse. Wirklich löschen?`n`nWARNUNG: Der Benutzer hat dann keine primäre E-Mail-Adresse mehr!",
@@ -1634,10 +1930,17 @@ function Remove-ProxyAddressFromUser {
             }
         }
         
-        # History-Export vor Änderung
-        Export-ProxyAddressHistory -User $User -Action "Vor Löschen" | Out-Null
+        $currentProxies = Get-CurrentProxyAddresses -User $User
+        $newList = [string[]]@($currentProxies | Where-Object { $_ -ine $ProxyAddress })
         
-        Set-ADUser -Identity $User.SamAccountName -Remove @{ProxyAddresses=$ProxyAddress}
+        if ($newList.Count -eq $currentProxies.Count) {
+            throw "Die ProxyAddress '$ProxyAddress' ist im AD nicht mehr vorhanden. Bitte aktualisieren."
+        }
+        
+        # History-Export vor Änderung
+        Export-ProxyAddressHistory -User $User -Action "Vor Löschen" -ProxyAddresses $currentProxies | Out-Null
+        
+        Set-UserProxyAddressList -User $User -ProxyAddresses $newList
         
         # Änderung protokollieren
         Write-UserChangeLog -Action "ProxyAddress GELÖSCHT" -TargetUser $User -ProxyAddress $ProxyAddress -Details "ProxyAddress wurde gelöscht"
@@ -1647,7 +1950,7 @@ function Remove-ProxyAddressFromUser {
         
     } catch {
         Write-Status -Message "Fehler beim Löschen: $($_.Exception.Message)" -Level ERROR
-        [System.Windows.MessageBox]::Show("Fehler beim Löschen der ProxyAddress:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        [System.Windows.MessageBox]::Show("Fehler beim Löschen der ProxyAddress:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error) | Out-Null
         return $false
     }
 }
@@ -1668,30 +1971,34 @@ function Set-PrimaryProxyAddress {
         }
         
         $emailAddress = $matches[1]
+        $newPrimary = "SMTP:$emailAddress"
         
         # Aktuelle ProxyAddresses laden
-        $currentProxies = Get-ADUser -Identity $User.SamAccountName -Properties ProxyAddresses | Select-Object -ExpandProperty ProxyAddresses
+        $currentProxies = Get-CurrentProxyAddresses -User $User
         
-        # Alte primäre SMTP zu sekundärer machen
-        $oldPrimary = $currentProxies | Where-Object { $_ -cmatch '^SMTP:' }
-        if ($oldPrimary) {
-            $newSecondary = $oldPrimary -replace '^SMTP:', 'smtp:'
-            Set-ADUser -Identity $User.SamAccountName -Remove @{ProxyAddresses=$oldPrimary}
-            Set-ADUser -Identity $User.SamAccountName -Add @{ProxyAddresses=$newSecondary}
+        if (-not ($currentProxies | Where-Object { $_ -ieq $ProxyAddress })) {
+            throw "Die ProxyAddress '$ProxyAddress' ist im AD nicht mehr vorhanden. Bitte aktualisieren."
         }
         
-        # Ausgewählte Adresse entfernen
-        Set-ADUser -Identity $User.SamAccountName -Remove @{ProxyAddresses=$ProxyAddress}
+        $oldPrimary = @($currentProxies | Where-Object { $_ -cmatch '^SMTP:' }) -join ', '
         
-        # Als primäre hinzufügen
-        $newPrimary = "SMTP:$emailAddress"
-        Set-ADUser -Identity $User.SamAccountName -Add @{ProxyAddresses=$newPrimary}
+        # Neue Liste: alte primäre -> sekundär, ausgewählte -> primär
+        $newList = New-Object System.Collections.Generic.List[string]
+        foreach ($proxy in $currentProxies) {
+            if ($proxy -ieq $ProxyAddress) {
+                $newList.Add($newPrimary)
+            } elseif ($proxy -cmatch '^SMTP:') {
+                $newList.Add(($proxy -creplace '^SMTP:', 'smtp:'))
+            } else {
+                $newList.Add($proxy)
+            }
+        }
         
-        # History-Export vor Änderung
-        Export-ProxyAddressHistory -User $User -Action "Vor Primär-Änderung" | Out-Null
+        # History-Export VOR der Änderung
+        Export-ProxyAddressHistory -User $User -Action "Vor Primär-Änderung" -ProxyAddresses $currentProxies | Out-Null
         
-        # Mail-Attribut aktualisieren
-        Set-ADUser -Identity $User.SamAccountName -EmailAddress $emailAddress
+        # ProxyAddresses und Mail-Attribut in einer atomaren Operation aktualisieren
+        Set-UserProxyAddressList -User $User -ProxyAddresses $newList.ToArray() -Mail $emailAddress
         
         # Änderung protokollieren
         Write-UserChangeLog -Action "PRIMÄRE SMTP-ADRESSE GEÄNDERT" -TargetUser $User -ProxyAddress $newPrimary -OldValue $oldPrimary -NewValue $newPrimary -Details "Primäre SMTP-Adresse wurde geändert. Alte primäre Adresse wurde zu sekundärer Adresse konvertiert."
@@ -1701,47 +2008,53 @@ function Set-PrimaryProxyAddress {
         
     } catch {
         Write-Status -Message "Fehler beim Setzen der primären Adresse: $($_.Exception.Message)" -Level ERROR
-        [System.Windows.MessageBox]::Show("Fehler beim Setzen der primären Adresse:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        [System.Windows.MessageBox]::Show("Fehler beim Setzen der primären Adresse:`n`n$($_.Exception.Message)", "Fehler", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error) | Out-Null
         return $false
     }
+}
+
+# Primäre SMTP-Adresse eines Benutzers ermitteln (Fallback: Mail-Attribut)
+function Get-UserPrimarySmtp {
+    param([Parameter(Mandatory=$true)]$User)
+    
+    $primarySMTP = ""
+    if ($User.ProxyAddresses) {
+        $primaryProxy = $User.ProxyAddresses | Where-Object { $_ -cmatch '^SMTP:' } | Select-Object -First 1
+        if ($primaryProxy) {
+            $primarySMTP = $primaryProxy -replace '^SMTP:', ''
+        }
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($primarySMTP) -and $User.Mail) {
+        $primarySMTP = $User.Mail
+    }
+    
+    return $primarySMTP
 }
 
 # Benutzer-Liste aktualisieren
 function Update-UserList {
     param(
         [Parameter(Mandatory=$true)]
+        [AllowEmptyCollection()]
         $Users
     )
     
-    Write-Log -Message "Update-UserList aufgerufen mit $($Users.Count) Benutzern" -Level DEBUG -Source "GUI"
+    Write-Log -Message "Update-UserList aufgerufen mit $(@($Users).Count) Benutzern" -Level DEBUG -Source "GUI"
     
     # Benutzer für DataGrid vorbereiten
-    $userList = @()
+    $userList = New-Object System.Collections.Generic.List[object]
     
     foreach ($user in $Users) {
-        # Primäre SMTP-Adresse extrahieren
-        $primarySMTP = ""
-        if ($user.ProxyAddresses) {
-            $primaryProxy = $user.ProxyAddresses | Where-Object { $_ -cmatch '^SMTP:' } | Select-Object -First 1
-            if ($primaryProxy) {
-                $primarySMTP = $primaryProxy -replace '^SMTP:', ''
-            }
-        }
-        
-        # Fallback auf Mail-Attribut wenn keine primäre SMTP
-        if ([string]::IsNullOrWhiteSpace($primarySMTP) -and $user.Mail) {
-            $primarySMTP = $user.Mail
-        }
-        
         # Benutzer-Objekt für DataGrid erstellen
-        $userList += [PSCustomObject]@{
+        $userList.Add([PSCustomObject]@{
             GivenName = $user.GivenName
             Surname = $user.Surname
             DisplayName = $user.DisplayName
-            PrimarySMTP = $primarySMTP
+            PrimarySMTP = Get-UserPrimarySmtp -User $user
             # Original-Objekt für spätere Verwendung
             OriginalUser = $user
-        }
+        })
     }
     
     Write-Log -Message "UserList erstellt mit $($userList.Count) Einträgen" -Level DEBUG -Source "GUI"
@@ -1750,29 +2063,111 @@ function Update-UserList {
     $dgUsers.Dispatcher.Invoke([Action]{
         $dgUsers.ItemsSource = $null
         $dgUsers.ItemsSource = $userList
-        $dgUsers.Items.Refresh()
     }, "Normal")
     
     Write-Log -Message "DataGrid aktualisiert" -Level DEBUG -Source "GUI"
 }
 
-# Benutzer aktualisieren
-function Refresh-CurrentUser {
+# Aktuellen Filter auf die geladenen Benutzer anwenden und Liste aktualisieren
+function Update-UserFilter {
+    $allUsers = @($script:AllUsers)
+    $selectedIndex = $cmbFilter.SelectedIndex
+    $script:CurrentFilter = $cmbFilter.SelectedItem.Content
+    
+    switch ($selectedIndex) {
+        1 { # Nur kompatible
+            $script:FilteredUsers = @($allUsers | Where-Object { (Get-UserValidation -User $_).IsValid })
+        }
+        2 { # Mit Warnungen
+            $script:FilteredUsers = @($allUsers | Where-Object { (Get-UserValidation -User $_).Warnings.Count -gt 0 })
+        }
+        3 { # Mit Fehlern
+            $script:FilteredUsers = @($allUsers | Where-Object { (Get-UserValidation -User $_).Issues.Count -gt 0 })
+        }
+        default { # Alle anzeigen
+            $script:FilteredUsers = $allUsers
+        }
+    }
+    
+    Update-UserList -Users $script:FilteredUsers
+    
+    if ($selectedIndex -gt 0) {
+        $txtUserCount.Text = Get-LocalizedString "FilterCount" -FormatArgs @($script:FilteredUsers.Count, $allUsers.Count, $script:CurrentFilter)
+    } else {
+        $txtUserCount.Text = Get-LocalizedString "UsersLoaded" -FormatArgs @($allUsers.Count)
+    }
+}
+
+# Neu geladene Benutzerliste übernehmen (Laden/Suchen)
+function Set-LoadedUsers {
+    param(
+        [AllowEmptyCollection()]
+        $Users,
+        [string]$CountKey = "UsersLoaded",
+        [string]$EmptyText
+    )
+    
+    $script:AllUsers = @($Users)
+    $script:ValidationCache = @{}
+    $userCount = $script:AllUsers.Count
+    
+    if ($userCount -gt 0) {
+        $txtNoUsers.Visibility = 'Collapsed'
+        Update-UserFilter
+        if ($cmbFilter.SelectedIndex -le 0) {
+            $txtUserCount.Text = Get-LocalizedString $CountKey -FormatArgs @($userCount)
+        }
+    } else {
+        $dgUsers.ItemsSource = $null
+        $txtNoUsers.Visibility = 'Visible'
+        $txtNoUsers.Text = if ($EmptyText) { $EmptyText } else { Get-LocalizedString "NoUsersLoaded" }
+        $txtUserCount.Text = Get-LocalizedString $CountKey -FormatArgs @(0)
+    }
+    
+    $hasUsers = ($userCount -gt 0)
+    $btnCheckADSync.IsEnabled = $hasUsers
+    $btnExport.IsEnabled = $hasUsers
+    $btnStatistics.IsEnabled = $hasUsers
+}
+
+# Aktuell ausgewählten Benutzer neu aus dem AD laden
+function Update-CurrentUser {
     if ($script:CurrentUser) {
         try {
-            $refreshedUser = Get-ADUser -Identity $script:CurrentUser.SamAccountName -Properties @(
-                'DisplayName', 'Mail', 'SamAccountName', 'UserPrincipalName',
-                'ProxyAddresses', 'msExchRecipientTypeDetails', 'msExchRecipientDisplayType',
-                'mailNickname', 'targetAddress', 'legacyExchangeDN'
-            )
+            $identity = Get-UserIdentity -User $script:CurrentUser
+            $refreshedUser = Get-ADUser -Identity $identity -Properties $script:ADUserProperties -ErrorAction Stop |
+                Select-Object -Property $script:ADUserProperties
+            
+            # Cache invalidieren und Benutzer in der geladenen Liste ersetzen,
+            # damit Liste, Filter, Export und Statistik den aktuellen Stand verwenden
+            $script:ValidationCache.Remove($identity)
+            for ($i = 0; $i -lt @($script:AllUsers).Count; $i++) {
+                if ($script:AllUsers[$i].DistinguishedName -eq $refreshedUser.DistinguishedName) {
+                    $script:AllUsers[$i] = $refreshedUser
+                }
+            }
+            
+            # DataGrid-Zeile aktualisieren (Auswahl bleibt erhalten)
+            if ($dgUsers.ItemsSource) {
+                foreach ($item in $dgUsers.ItemsSource) {
+                    if ($item.OriginalUser.DistinguishedName -eq $refreshedUser.DistinguishedName) {
+                        $item.OriginalUser = $refreshedUser
+                        $item.PrimarySMTP = Get-UserPrimarySmtp -User $refreshedUser
+                        $item.DisplayName = $refreshedUser.DisplayName
+                    }
+                }
+                $dgUsers.Items.Refresh()
+            }
             
             $script:CurrentUser = $refreshedUser
             Update-ProxyAddressDisplay
+            return $true
             
         } catch {
             Write-Status -Message "Fehler beim Aktualisieren: $($_.Exception.Message)" -Level ERROR
         }
     }
+    return $false
 }
 
 # ProxyAddress-Anzeige aktualisieren
@@ -1788,28 +2183,33 @@ function Update-ProxyAddressDisplay {
     $txtSelectedUserSAM.Text = "SAM: $($script:CurrentUser.SamAccountName) | UPN: $($script:CurrentUser.UserPrincipalName)"
     
     # Validierung durchführen
-    $validation = Test-UserMS365Compatibility -User $script:CurrentUser
+    $validation = Get-UserValidation -User $script:CurrentUser
+    
+    $messages = @()
+    if ($validation.Issues.Count -gt 0) {
+        $messages += Get-LocalizedString "ErrorsHeader"
+        $messages += $validation.Issues | ForEach-Object { "  • $_" }
+    }
+    if ($validation.Warnings.Count -gt 0) {
+        $messages += Get-LocalizedString "WarningsHeader"
+        $messages += $validation.Warnings | ForEach-Object { "  • $_" }
+    }
     
     if ($validation.IsValid) {
-        $txtValidationStatus.Text = "✅ MS365 Kompatibel"
+        $txtValidationStatus.Text = Get-LocalizedString "Compatible"
         $txtValidationStatus.Foreground = "Green"
-        $pnlValidationInfo.Visibility = 'Collapsed'
     } else {
-        $txtValidationStatus.Text = "❌ Probleme gefunden"
+        $txtValidationStatus.Text = Get-LocalizedString "ProblemsFound"
         $txtValidationStatus.Foreground = "Red"
-        $pnlValidationInfo.Visibility = 'Visible'
-        
-        $messages = @()
-        if ($validation.Issues.Count -gt 0) {
-            $messages += "FEHLER:"
-            $messages += $validation.Issues | ForEach-Object { "  • $_" }
-        }
-        if ($validation.Warnings.Count -gt 0) {
-            $messages += "WARNUNGEN:"
-            $messages += $validation.Warnings | ForEach-Object { "  • $_" }
-        }
-        
+    }
+    
+    # Warnungen auch bei kompatiblen Benutzern anzeigen
+    if ($messages.Count -gt 0) {
         $txtValidationMessages.Text = $messages -join "`n"
+        $pnlValidationInfo.Visibility = 'Visible'
+    } else {
+        $txtValidationMessages.Text = ""
+        $pnlValidationInfo.Visibility = 'Collapsed'
     }
     
     # ProxyAddresses laden
@@ -1821,7 +2221,7 @@ function Update-ProxyAddressDisplay {
     } else {
         $dgProxyAddresses.ItemsSource = $null
         $txtNoProxyData.Visibility = 'Visible'
-        $txtNoProxyData.Text = "Keine ProxyAddresses vorhanden.`nFügen Sie eine hinzu."
+        $txtNoProxyData.Text = Get-LocalizedString "NoProxyAddresses"
     }
     
     # Buttons aktivieren
@@ -1884,7 +2284,6 @@ $txtSelectedUserName = $window.FindName("txtSelectedUserName")
 $txtSelectedUserMail = $window.FindName("txtSelectedUserMail")
 $txtSelectedUserSAM = $window.FindName("txtSelectedUserSAM")
 $txtValidationStatus = $window.FindName("txtValidationStatus")
-$txtValidationDetails = $window.FindName("txtValidationDetails")
 
 $pnlValidationInfo = $window.FindName("pnlValidationInfo")
 $txtValidationMessages = $window.FindName("txtValidationMessages")
@@ -1934,17 +2333,18 @@ $btnCheckADSync.Add_Click({
     }
     
     try {
-        Write-Status -Message (Get-LocalizedString "CheckingADSync" -Args @($script:AllUsers.Count)) -Level INFO
+        Write-Status -Message (Get-LocalizedString "CheckingADSync" -FormatArgs @($script:AllUsers.Count)) -Level INFO
         Write-Log -Message "Starte ADSync-Prüfung für $($script:AllUsers.Count) Benutzer" -Level INFO -Source "ADSync-Check"
         
         $totalUsers = $script:AllUsers.Count
         $validUsers = 0
         $usersWithIssues = 0
         $usersWithWarnings = 0
-        $detailedResults = @()
+        $detailedResults = New-Object System.Collections.Generic.List[object]
+        [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
         
         foreach ($user in $script:AllUsers) {
-            $validation = Test-UserMS365Compatibility -User $user
+            $validation = Get-UserValidation -User $user
             
             if ($validation.IsValid) {
                 $validUsers++
@@ -1958,14 +2358,15 @@ $btnCheckADSync.Add_Click({
                 $usersWithWarnings++
             }
             
-            $detailedResults += [PSCustomObject]@{
+            $detailedResults.Add([PSCustomObject]@{
                 DisplayName = $user.DisplayName
                 SamAccountName = $user.SamAccountName
                 Status = $status
                 Fehler = if ($validation.Issues.Count -gt 0) { $validation.Issues -join "; " } else { "-" }
                 Warnungen = if ($validation.Warnings.Count -gt 0) { $validation.Warnings -join "; " } else { "-" }
-            }
+            })
         }
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
         
         # Ergebnis-Dialog
         $resultWindow = New-Object System.Windows.Window
@@ -2057,55 +2458,45 @@ $btnCheckADSync.Add_Click({
         $resultWindow.Content = $grid
         
         Write-Log -Message "ADSync-Prüfung abgeschlossen: $validUsers/$totalUsers kompatibel, $usersWithIssues mit Fehlern, $usersWithWarnings mit Warnungen" -Level INFO -Source "ADSync-Check"
-        Write-Status -Message (Get-LocalizedString "ADSyncComplete" -Args @($validUsers,$totalUsers)) -Level SUCCESS
+        Write-Status -Message (Get-LocalizedString "ADSyncComplete" -FormatArgs @($validUsers,$totalUsers)) -Level SUCCESS
         
         [void]$resultWindow.ShowDialog()
         
     } catch {
         Write-Status -Message "Fehler bei ADSync-Prüfung: $($_.Exception.Message)" -Level ERROR
         Write-Log -Message "Fehler bei ADSync-Prüfung: $($_.Exception.Message)" -Level ERROR -Source "ADSync-Check"
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 })
 
 # Alle Benutzer laden
 $btnLoadAll.Add_Click({
     try {
-        $script:AllUsers = Get-ADUsersWithProxy -DomainController $null -SearchBase $null
-        
-        if ($script:AllUsers.Count -gt 0) {
-            Update-UserList -Users $script:AllUsers
-            $txtNoUsers.Visibility = 'Collapsed'
-            $txtUserCount.Text = Get-LocalizedString "UsersLoaded" -Args @($script:AllUsers.Count)
-            $btnCheckADSync.IsEnabled = $true
-            $btnExport.IsEnabled = $true
-            $btnStatistics.IsEnabled = $true
-        } else {
-            $dgUsers.ItemsSource = $null
-            $txtNoUsers.Visibility = 'Visible'
-            $txtUserCount.Text = Get-LocalizedString "UsersLoaded" -Args @(0)
-            $btnCheckADSync.IsEnabled = $false
-            $btnExport.IsEnabled = $false
-            $btnStatistics.IsEnabled = $false
-        }
-        
+        [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+        $users = @(Get-ADUsersWithProxy -DomainController $null -SearchBase $null)
+        Set-LoadedUsers -Users $users -CountKey "UsersLoaded"
     } catch {
         Write-Status -Message "Fehler: $($_.Exception.Message)" -Level ERROR
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 })
 
-# Benutzer suchen (Funktion für Button und TextChanged)
+# Benutzer suchen (Funktion für Button, Enter-Taste und Live-Suche)
 $performSearch = {
     try {
+        if ($script:SearchTimer) {
+            $script:SearchTimer.Stop()
+        }
+        
         $searchTerm = $txtSearch.Text.Trim()
         
         # Mindestens 3 Zeichen erforderlich
         if ($searchTerm.Length -lt 3) {
             if ($searchTerm.Length -eq 0) {
                 # Leeres Suchfeld - Liste leeren
-                $dgUsers.ItemsSource = $null
-                $txtNoUsers.Visibility = 'Visible'
-                $txtNoUsers.Text = Get-LocalizedString "NoUsersLoaded"
-                $txtUserCount.Text = Get-LocalizedString "UsersLoaded" -Args @(0)
+                Set-LoadedUsers -Users @() -CountKey "UsersLoaded"
             } else {
                 # Weniger als 3 Zeichen
                 $txtUserCount.Text = Get-LocalizedString "MinChars"
@@ -2113,72 +2504,42 @@ $performSearch = {
             return
         }
         
+        [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
         $searchResult = @(Search-ADUsers -SearchTerm $searchTerm)
-        $script:AllUsers = $searchResult
         
-        Write-Log -Message "Suchergebnis: Typ=$($searchResult.GetType().Name), Count=$($searchResult.Count)" -Level DEBUG -Source "GUI"
-        Write-Log -Message "AllUsers: Typ=$($script:AllUsers.GetType().Name), Count=$($script:AllUsers.Count)" -Level DEBUG -Source "GUI"
+        Write-Log -Message "Suchergebnis: Count=$($searchResult.Count)" -Level DEBUG -Source "GUI"
         
-        # Sichere Count-Abfrage
-        if ($searchResult -is [Array]) {
-            $userCount = $searchResult.Count
-        } elseif ($searchResult) {
-            $userCount = 1
-        } else {
-            $userCount = 0
-        }
-        
-        if ($userCount -gt 0) {
-            Write-Log -Message "Rufe Update-UserList auf mit $userCount Benutzern" -Level DEBUG -Source "GUI"
-            Update-UserList -Users $searchResult
-            $txtNoUsers.Visibility = 'Collapsed'
-            $txtUserCount.Text = Get-LocalizedString "UsersFoundCount" -Args @($userCount)
-            $btnCheckADSync.IsEnabled = $true
-            $btnExport.IsEnabled = $true
-            $btnStatistics.IsEnabled = $true
-        } else {
-            Write-Log -Message "Keine Benutzer gefunden - zeige Meldung" -Level DEBUG -Source "GUI"
-            $dgUsers.ItemsSource = $null
-            $txtNoUsers.Visibility = 'Visible'
-            $txtNoUsers.Text = Get-LocalizedString "NoUsersFound" -Args @($searchTerm)
-            $txtUserCount.Text = Get-LocalizedString "UsersFoundCount" -Args @(0)
-            $btnCheckADSync.IsEnabled = $false
-            $btnExport.IsEnabled = $false
-            $btnStatistics.IsEnabled = $false
-        }
+        Set-LoadedUsers -Users $searchResult -CountKey "UsersFoundCount" -EmptyText (Get-LocalizedString "NoUsersFound" -FormatArgs @($searchTerm))
         
     } catch {
         Write-Status -Message "Fehler: $($_.Exception.Message)" -Level ERROR
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
 }
 
 # Benutzer suchen - Button Click
 $btnSearch.Add_Click($performSearch)
 
+# Live-Suche: ein einziger Timer (500 ms Verzögerung) verhindert zu viele AD-Anfragen
+$script:SearchTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:SearchTimer.Interval = [TimeSpan]::FromMilliseconds(500)
+$script:SearchTimer.Add_Tick({
+    $script:SearchTimer.Stop()
+    & $performSearch
+})
+
 # Automatische Suche beim Tippen (ab 3 Zeichen)
 $txtSearch.Add_TextChanged({
     $searchTerm = $txtSearch.Text.Trim()
+    $script:SearchTimer.Stop()
     
     # Nur suchen wenn mindestens 3 Zeichen
     if ($searchTerm.Length -ge 3) {
-        # Verzögerung für bessere Performance (verhindert zu viele Anfragen)
-        if ($script:SearchTimer) {
-            $script:SearchTimer.Stop()
-        }
-        
-        $script:SearchTimer = New-Object System.Windows.Threading.DispatcherTimer
-        $script:SearchTimer.Interval = [TimeSpan]::FromMilliseconds(500)
-        $script:SearchTimer.Add_Tick({
-            $script:SearchTimer.Stop()
-            & $performSearch
-        })
         $script:SearchTimer.Start()
     } elseif ($searchTerm.Length -eq 0) {
         # Suchfeld geleert - Liste leeren
-        $dgUsers.ItemsSource = $null
-        $txtNoUsers.Visibility = 'Visible'
-        $txtNoUsers.Text = Get-LocalizedString "NoUsersLoaded"
-        $txtUserCount.Text = Get-LocalizedString "UsersLoaded" -Args @(0)
+        Set-LoadedUsers -Users @() -CountKey "UsersLoaded"
     } else {
         # Weniger als 3 Zeichen
         $txtUserCount.Text = Get-LocalizedString "MinChars"
@@ -2187,9 +2548,9 @@ $txtSearch.Add_TextChanged({
 
 # Enter-Taste in Suchfeld
 $txtSearch.Add_KeyDown({
-    param($sender, $e)
+    param($eventSender, $e)
     if ($e.Key -eq 'Return') {
-        $btnSearch.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Button]::ClickEvent)))
+        & $performSearch
     }
 })
 
@@ -2216,7 +2577,7 @@ $dgProxyAddresses.Add_SelectionChanged({
         
         # Nur SMTP-Adressen können primär gesetzt werden
         $selected = $dgProxyAddresses.SelectedItem
-        if ($selected.Type -match '^smtp$' -and $selected.IsPrimary -eq "Nein") {
+        if ($selected.Type -match '^smtp$' -and -not $selected.IsPrimaryFlag) {
             $btnSetPrimary.IsEnabled = $true
         } else {
             $btnSetPrimary.IsEnabled = $false
@@ -2285,7 +2646,7 @@ $btnAddProxy.Add_Click({
     $cmbType.Items.Add("SIP:")
     $cmbType.Items.Add("X500:")
     $cmbType.SelectedIndex = 1
-    $inputPanel.Children.Add($cmbType)
+    [void]$inputPanel.Children.Add($cmbType)
     
     # Benutzername TextBox
     $txtUsername = New-Object System.Windows.Controls.TextBox
@@ -2330,6 +2691,25 @@ $btnAddProxy.Add_Click({
     [System.Windows.Controls.Grid]::SetRow($lblHint, 2)
     $grid.Children.Add($lblHint)
     
+    # Typ-Wechsel: X500 benötigt einen vollständigen Exchange-DN statt name@domain
+    $cmbType.Add_SelectionChanged({
+        $isX500 = ($cmbType.SelectedItem -like 'X500:*')
+        if ($isX500) {
+            $txtUsername.Text = if ($script:CurrentUser.legacyExchangeDN) { [string]$script:CurrentUser.legacyExchangeDN } else { "/o=" }
+            $txtUsername.Width = 467
+            $lblAt.Visibility = 'Collapsed'
+            $cmbDomain.Visibility = 'Collapsed'
+            $lblHint.Text = "ⓘ X500: Vollständigen Exchange-DN eingeben (z.B. Wert aus legacyExchangeDN, beginnt mit /o=)."
+        } else {
+            if ($txtUsername.Text -like '/o=*') {
+                $txtUsername.Text = $script:CurrentUser.SamAccountName
+            }
+            $txtUsername.Width = 262
+            $lblAt.Visibility = 'Visible'
+            $cmbDomain.Visibility = 'Visible'
+            $lblHint.Text = "ⓘ Manuelle Domänen (nicht in der Liste) müssen bestätigt werden."
+        }
+    })
     # Buttons
     $btnPanel = New-Object System.Windows.Controls.StackPanel
     $btnPanel.Orientation = 'Horizontal'
@@ -2359,6 +2739,16 @@ $btnAddProxy.Add_Click({
             return
         }
         
+        # X500: vollständiger Exchange-DN, keine Domäne
+        if ($type -eq 'X500:') {
+            if (Add-ProxyAddressToUser -User $script:CurrentUser -ProxyAddress "X500:$username") {
+                $inputDialog.DialogResult = $true
+                $inputDialog.Close()
+                Update-CurrentUser | Out-Null
+            }
+            return
+        }
+        
         if ([string]::IsNullOrWhiteSpace($domain)) {
             [System.Windows.MessageBox]::Show("Bitte geben Sie eine Domäne ein.", "Hinweis", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
             return
@@ -2380,18 +2770,13 @@ $btnAddProxy.Add_Click({
             Write-Log -Message "Manuelle Domäne verwendet: $domain" -Level WARNING -Source "ProxyAddress"
         }
         
-        # Vollständige Adresse erstellen
-        if ($type -match '^(SMTP|smtp|SIP):$') {
-            $fullProxy = "$type$username@$domain"
-        } else {
-            # X500 oder andere
-            $fullProxy = "$type$username@$domain"
-        }
+        # Vollständige Adresse erstellen (SMTP:/smtp:/SIP:)
+        $fullProxy = "$type$username@$domain"
         
         if (Add-ProxyAddressToUser -User $script:CurrentUser -ProxyAddress $fullProxy) {
             $inputDialog.DialogResult = $true
             $inputDialog.Close()
-            Refresh-CurrentUser
+            Update-CurrentUser | Out-Null
         }
     })
     
@@ -2489,23 +2874,17 @@ $btnEditProxy.Add_Click({
             return
         }
         
-        if ($newProxy -eq $selected.FullAddress) {
+        if ($newProxy -ceq $selected.FullAddress) {
             [System.Windows.MessageBox]::Show("Die Adresse wurde nicht geändert.", "Hinweis", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
             $inputDialog.Close()
             return
         }
         
-        # Alte löschen, neue hinzufügen
-        if (Remove-ProxyAddressFromUser -User $script:CurrentUser -ProxyAddress $selected.FullAddress) {
-            if (Add-ProxyAddressToUser -User $script:CurrentUser -ProxyAddress $newProxy) {
-                Write-UserChangeLog -Action "ProxyAddress BEARBEITET" -TargetUser $script:CurrentUser -ProxyAddress $newProxy -OldValue $selected.FullAddress -NewValue $newProxy -Details "ProxyAddress wurde geändert"
-                $inputDialog.DialogResult = $true
-                $inputDialog.Close()
-                Refresh-CurrentUser
-            } else {
-                # Fehler beim Hinzufügen - alte wieder hinzufügen
-                Add-ProxyAddressToUser -User $script:CurrentUser -ProxyAddress $selected.FullAddress | Out-Null
-            }
+        # Alte Adresse in EINER atomaren AD-Operation durch die neue ersetzen
+        if (Update-ProxyAddressOfUser -User $script:CurrentUser -OldProxyAddress $selected.FullAddress -NewProxyAddress $newProxy) {
+            $inputDialog.DialogResult = $true
+            $inputDialog.Close()
+            Update-CurrentUser | Out-Null
         }
     })
     
@@ -2538,7 +2917,7 @@ $btnDeleteProxy.Add_Click({
     
     if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
         if (Remove-ProxyAddressFromUser -User $script:CurrentUser -ProxyAddress $selected.FullAddress) {
-            Refresh-CurrentUser
+            Update-CurrentUser | Out-Null
         }
     }
 })
@@ -2560,14 +2939,16 @@ $btnSetPrimary.Add_Click({
     
     if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
         if (Set-PrimaryProxyAddress -User $script:CurrentUser -ProxyAddress $selected.FullAddress) {
-            Refresh-CurrentUser
+            Update-CurrentUser | Out-Null
         }
     }
 })
 
 # Aktualisieren
 $btnRefresh.Add_Click({
-    Refresh-CurrentUser
+    if (Update-CurrentUser) {
+        Write-Status -Message (Get-LocalizedString "UserRefreshed") -Level INFO
+    }
 })
 
 # Export CSV
@@ -2587,42 +2968,20 @@ $btnExport.Add_Click({
 
 # Filter ändern
 $cmbFilter.Add_SelectionChanged({
-    if (-not $script:AllUsers -or $script:AllUsers.Count -eq 0) {
+    if (-not $script:AllUsers -or @($script:AllUsers).Count -eq 0) {
         return
     }
     
-    $selectedIndex = $cmbFilter.SelectedIndex
-    $script:CurrentFilter = $cmbFilter.SelectedItem.Content
-    
-    Write-Log -Message "Filter geändert: $($script:CurrentFilter)" -Level INFO -Source "Filter"
-    
-    switch ($selectedIndex) {
-        0 { # Alle anzeigen
-            $script:FilteredUsers = $script:AllUsers
-        }
-        1 { # Nur kompatible
-            $script:FilteredUsers = @($script:AllUsers | Where-Object {
-                $validation = Test-UserMS365Compatibility -User $_
-                $validation.IsValid
-            })
-        }
-        2 { # Mit Warnungen
-            $script:FilteredUsers = @($script:AllUsers | Where-Object {
-                $validation = Test-UserMS365Compatibility -User $_
-                $validation.Warnings.Count -gt 0
-            })
-        }
-        3 { # Mit Fehlern
-            $script:FilteredUsers = @($script:AllUsers | Where-Object {
-                $validation = Test-UserMS365Compatibility -User $_
-                $validation.Issues.Count -gt 0
-            })
-        }
+    try {
+        [System.Windows.Input.Mouse]::OverrideCursor = [System.Windows.Input.Cursors]::Wait
+        Update-UserFilter
+        Write-Log -Message "Filter geändert: $($script:CurrentFilter)" -Level INFO -Source "Filter"
+        Write-Status -Message (Get-LocalizedString "FilterApplied" -FormatArgs @($script:FilteredUsers.Count)) -Level INFO
+    } catch {
+        Write-Status -Message "Fehler: $($_.Exception.Message)" -Level ERROR
+    } finally {
+        [System.Windows.Input.Mouse]::OverrideCursor = $null
     }
-    
-    Update-UserList -Users $script:FilteredUsers
-    $txtUserCount.Text = "$($script:FilteredUsers.Count) von $($script:AllUsers.Count) Benutzer ($($script:CurrentFilter))"
-    Write-Status -Message (Get-LocalizedString "FilterApplied" -Args @($script:FilteredUsers.Count)) -Level INFO
 })
 
 # History anzeigen
@@ -2670,6 +3029,10 @@ $btnLangEN.Add_Click({
 
 # Beim Schließen des Fensters
 $window.Add_Closing({
+    if ($script:SearchTimer) {
+        $script:SearchTimer.Stop()
+    }
+    
     Write-Log -Message "easyEXCH ProxyAddress Manager wird beendet" -Level INFO -Source "Shutdown"
     
     # Session-Footer schreiben

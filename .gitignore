@@ -12,3 +12,8 @@
 */MIGExports/*.*
 */MSScripts/*.*
 Logs/PhinITAndreasHepp/*.*
+
+# Laufzeitdaten des Scripts im Root-Verzeichnis (enthalten personenbezogene AD-Daten)
+/Logs/
+/Exports/
+/History/
