@@ -4,10 +4,12 @@
 
 Das Tool verfügt über ein vollständiges Logging-System, das speziell für die Konvertierung zu einer EXE-Datei optimiert ist.
 
+Zurück zur [README](../README.md) · [Changelog](../CHANGELOG.md) · [Sicherheitsrichtlinie](../SECURITY.md)
+
 ## 📁 Log-Struktur
 
 ```
-Script-Verzeichnis\
+<Script-Verzeichnis>\           # z.B. src\
 └── Logs\
     ├── USERNAME1\
     │   ├── USERNAME1_2025-12-08.log          # Haupt-Log (alle Aktionen)
@@ -86,13 +88,15 @@ Das Script ist vollständig PS2EXE-kompatibel:
 
 ```powershell
 # Empfohlene Kompilierung:
-ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
+# -iconFile ist optional (Icon-Datei ist nicht im Repository enthalten).
+# Nach einem Backtick (`) darf kein Kommentar stehen, sonst bricht die Zeilenfortsetzung.
+ps2exe .\src\easyEXCH-PMA_V1.0.2.ps1 .\easyEXCH-PMA_V1.0.2.exe `
     -noConsole `
     -STA `
     -x64 `
-    -iconFile .\icon.ico `   # optional, Icon-Datei ist nicht im Repository enthalten
+    -iconFile .\icon.ico `
     -title "easyEXCH ProxyAddress Manager" `
-    -version "1.0.1" `
+    -version "1.0.2" `
     -company "PhinIT.DE" `
     -copyright "© 2025 Andreas Hepp"
 ```
@@ -115,6 +119,16 @@ ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
 %TEMP%\easyEXCH_PMA_Logs\<USERNAME>\
 ```
 
+Der Fallback greift, wenn der Log-Ordner nicht angelegt **oder** nicht beschrieben werden kann (z.B. vorhandener Ordner ohne Schreibrechte). Schlagen beide Varianten fehl, erscheint beim Start eine Warnung; das Programm bleibt nutzbar.
+
+### Exports und History
+| Ordner | Standard | Fallback |
+|--------|----------|----------|
+| Exports | `<Script-Verzeichnis>\Exports\` | `%LOCALAPPDATA%\easyEXCH_PMA\Exports\` |
+| History | `<Script-Verzeichnis>\History\` | `%LOCALAPPDATA%\easyEXCH_PMA\History\` |
+
+Die Verwendung eines Fallback-Ordners wird als WARNING protokolliert. Schlägt das History-Backup vor einer Änderung fehl, wird nachgefragt, ob die Änderung trotzdem durchgeführt werden soll.
+
 ## 🔒 Sicherheit
 
 ### Protokollierte Informationen
@@ -128,8 +142,11 @@ ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
 - ✅ Thread-ID (für Debugging)
 
 ### NICHT protokolliert
-- ❌ Passwörter
-- ❌ Sensible Daten
+- ❌ Passwörter und Anmeldedaten
+
+### Schutzmaßnahmen
+- Zeilenumbrüche (CR/LF) in Meldungen und Kontextwerten werden durch ` | ` ersetzt – eingegebene Werte können keine gefälschten Logzeilen erzeugen (Log-Injection).
+- Logs enthalten **personenbezogene Daten** (Namen, E-Mail-Adressen, DNs). Zugriff auf den Log-Ordner beschränken; Logs werden nicht ins Repository eingecheckt (`.gitignore`).
 
 ## 📖 Log-Format
 
@@ -148,7 +165,7 @@ ps2exe .\easyEXCH-PMA_V1.0.1.ps1 .\easyEXCH-PMA.exe `
 ### Problem: Logs werden nicht erstellt
 **Lösung**: 
 1. Prüfen Sie Schreibrechte im Script-Verzeichnis
-2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt
+2. Logs werden automatisch in `%TEMP%\easyEXCH_PMA_Logs\` erstellt (Fallback)
 
 ### Problem: Zu viele alte Logs
 **Lösung**: 
@@ -167,5 +184,5 @@ $script:EnableDebugLogging = $false
 Bei Fragen oder Problemen:
 - **Autor**: Andreas Hepp
 - **Website**: www.PhinIT.DE
-- **Version**: 1.0.1
+- **Version**: 1.0.2
 - **Datum**: 2026-10-14
