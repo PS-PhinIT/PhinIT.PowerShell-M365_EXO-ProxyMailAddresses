@@ -6,11 +6,11 @@
     Lädt Benutzer aus lokalem AD, zeigt aktuelle ProxyAddresses und ermöglicht Hinzufügen/Ändern/Löschen.
     Prüft automatisch MS365 ADSync-Kompatibilität (berücksichtigt Legacy Exchange Attribute).
 .VERSION
-    1.0.2
+    1.0.3
 .AUTHOR
     Andreas Hepp  |  PhinIT.DE
 .DATE
-    2026-10-14
+    2026-10-17
 #>
 
 #Requires -Version 5.1
@@ -28,7 +28,7 @@ Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 # Script-Version (zentral, wird in Logs verwendet)
-$script:AppVersion = "1.0.2"
+$script:AppVersion = "1.0.3"
 
 # ActiveDirectory-Modul prüfen und laden (Voraussetzung für alle AD-Befehle)
 try {
@@ -891,6 +891,14 @@ $script:ADUserProperties = @(
     'mailNickname', 'targetAddress', 'legacyExchangeDN', 'DistinguishedName'
 )
 
+# Optionale Attribute (Exchange-Schemaerweiterung) - werden nur abgefragt, wenn sie im AD-Schema existieren,
+# da Get-ADUser bei unbekannten Attributen mit "One or more properties are invalid" abbricht
+$script:ADUserOptionalProperties = @(
+    'msExchRecipientTypeDetails', 'msExchRecipientDisplayType',
+    'mailNickname', 'targetAddress', 'legacyExchangeDN'
+)
+$script:ADUserQueryProperties = $null
+
 # Logging-Konfiguration
 $script:CurrentExecutingUser = $env:USERNAME
 $script:CurrentDate = Get-Date -Format "yyyy-MM-dd"
@@ -1693,6 +1701,36 @@ function Write-Status {
     }
 }
 
+# Für Get-ADUser abfragbare Attribute ermitteln (Basisattribute + im Schema vorhandene optionale Attribute)
+function Get-ADUserQueryProperties {
+    if ($null -ne $script:ADUserQueryProperties) {
+        return $script:ADUserQueryProperties
+    }
+
+    $baseProperties = @($script:ADUserProperties | Where-Object { $script:ADUserOptionalProperties -notcontains $_ })
+
+    try {
+        $schemaNC = (Get-ADRootDSE -ErrorAction Stop).schemaNamingContext
+        $ldapFilter = "(|" + (($script:ADUserOptionalProperties | ForEach-Object { "(lDAPDisplayName=$_)" }) -join '') + ")"
+        $schemaNames = @(Get-ADObject -SearchBase $schemaNC -LDAPFilter $ldapFilter -Properties lDAPDisplayName -ErrorAction Stop |
+            ForEach-Object { [string]$_.lDAPDisplayName })
+
+        $available = @($script:ADUserOptionalProperties | Where-Object { $schemaNames -contains $_ })
+        $missing = @($script:ADUserOptionalProperties | Where-Object { $schemaNames -notcontains $_ })
+
+        if ($missing.Count -gt 0) {
+            Write-Log -Message "Attribute nicht im AD-Schema vorhanden (Exchange-Schema nicht erweitert?), werden nicht abgefragt: $($missing -join ', ')" -Level WARNING -Source "AD-Query"
+        }
+
+        $script:ADUserQueryProperties = @($baseProperties + $available)
+    } catch {
+        Write-Log -Message "AD-Schema konnte nicht gelesen werden, optionale Attribute werden nicht abgefragt: $($_.Exception.Message)" -Level WARNING -Source "AD-Query"
+        return $baseProperties
+    }
+
+    return $script:ADUserQueryProperties
+}
+
 # AD Benutzer laden
 function Get-ADUsersWithProxy {
     param(
@@ -1715,7 +1753,7 @@ function Get-ADUsersWithProxy {
 
         $params = @{
             Filter = $adFilter
-            Properties = $script:ADUserProperties
+            Properties = (Get-ADUserQueryProperties)
             ErrorAction = 'Stop'
         }
 
@@ -1766,7 +1804,7 @@ function Search-ADUsers {
                 (SamAccountName -like $wildcard) -or
                 (UserPrincipalName -like $wildcard)
             )
-        } -Properties $script:ADUserProperties -ErrorAction Stop |
+        } -Properties (Get-ADUserQueryProperties) -ErrorAction Stop |
         Select-Object -Property $script:ADUserProperties)
 
         $userCount = $users.Count
@@ -2424,7 +2462,7 @@ function Update-CurrentUser {
     if ($script:CurrentUser) {
         try {
             $identity = Get-UserIdentity -User $script:CurrentUser
-            $refreshedUser = Get-ADUser -Identity $identity -Properties $script:ADUserProperties -ErrorAction Stop |
+            $refreshedUser = Get-ADUser -Identity $identity -Properties (Get-ADUserQueryProperties) -ErrorAction Stop |
                 Select-Object -Property $script:ADUserProperties
 
             # Cache invalidieren und Benutzer in der geladenen Liste ersetzen,

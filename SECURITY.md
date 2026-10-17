@@ -6,8 +6,8 @@ Sicherheitskorrekturen werden ausschließlich für die jeweils aktuelle Version 
 
 | Version | Unterstützt |
 |---------|-------------|
-| 1.0.2   | ✅ |
-| < 1.0.2 | ❌ |
+| 1.0.3   | ✅ |
+| < 1.0.3 | ❌ |
 
 ## Sicherheitslücke melden
 

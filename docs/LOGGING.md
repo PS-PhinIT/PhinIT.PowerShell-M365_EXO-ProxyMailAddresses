@@ -90,13 +90,13 @@ Das Script ist vollständig PS2EXE-kompatibel:
 # Empfohlene Kompilierung:
 # -iconFile ist optional (Icon-Datei ist nicht im Repository enthalten).
 # Nach einem Backtick (`) darf kein Kommentar stehen, sonst bricht die Zeilenfortsetzung.
-ps2exe .\src\easyEXCH-PMA_V1.0.2.ps1 .\easyEXCH-PMA_V1.0.2.exe `
+ps2exe .\src\easyEXCH-PMA_V1.0.3.ps1 .\easyEXCH-PMA_V1.0.3.exe `
     -noConsole `
     -STA `
     -x64 `
     -iconFile .\icon.ico `
     -title "easyEXCH ProxyAddress Manager" `
-    -version "1.0.2" `
+    -version "1.0.3" `
     -company "PhinIT.DE" `
     -copyright "© 2025 Andreas Hepp"
 ```
@@ -184,5 +184,5 @@ $script:EnableDebugLogging = $false
 Bei Fragen oder Problemen:
 - **Autor**: Andreas Hepp
 - **Website**: www.PhinIT.DE
-- **Version**: 1.0.2
-- **Datum**: 2026-10-14
+- **Version**: 1.0.3
+- **Datum**: 2026-10-17
