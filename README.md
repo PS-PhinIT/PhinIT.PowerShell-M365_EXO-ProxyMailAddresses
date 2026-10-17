@@ -1,6 +1,6 @@
 # easyEXCH ProxyAddress Manager
 
-![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
@@ -8,7 +8,7 @@
 
 **Tool zur Verwaltung von ProxyMailAddresses für Microsoft 365 ADSync**
 
-Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | Version 1.0.2 (14.10.2026)
+Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | Version 1.0.3 (17.10.2026)
 
 ---
 
@@ -132,7 +132,7 @@ Entwickelt von **Andreas Hepp** | [www.phinit.de](https://www.phinit.de) | Versi
 ```
 .
 ├── src/
-│   └── easyEXCH-PMA_V1.0.2.ps1   # Anwendung
+│   └── easyEXCH-PMA_V1.0.3.ps1   # Anwendung
 ├── docs/
 │   ├── AUDIT.md                  # Audit-Bericht 1.0.2
 │   ├── LOGGING.md                # Logging-Dokumentation
@@ -169,10 +169,10 @@ Zur Laufzeit legt das Script neben sich die Ordner `Logs\`, `Exports\` und `Hist
 
 2. **Script ausführen** (Windows PowerShell 5.1):
    ```powershell
-   powershell.exe -STA -File .\src\easyEXCH-PMA_V1.0.2.ps1
+   powershell.exe -STA -File .\src\easyEXCH-PMA_V1.0.3.ps1
    ```
 
-   > Hinweis: Bei aus dem Internet geladenen Dateien ggf. `Unblock-File .\src\easyEXCH-PMA_V1.0.2.ps1` ausführen bzw. die Execution Policy beachten.
+   > Hinweis: Bei aus dem Internet geladenen Dateien ggf. `Unblock-File .\src\easyEXCH-PMA_V1.0.3.ps1` ausführen bzw. die Execution Policy beachten.
 
 3. **Optional: Als EXE kompilieren** (siehe [EXE-Konvertierung](#-exe-konvertierung))
 
@@ -435,7 +435,7 @@ Install-Module PS2EXE -Scope CurrentUser
 ```powershell
 # -iconFile ist optional (Icon-Datei ist nicht im Repository enthalten).
 # Hinweis: Nach einem Backtick (`) darf kein Kommentar stehen, sonst bricht die Zeilenfortsetzung.
-ps2exe .\src\easyEXCH-PMA_V1.0.2.ps1 .\easyEXCH-PMA_V1.0.2.exe `
+ps2exe .\src\easyEXCH-PMA_V1.0.3.ps1 .\easyEXCH-PMA_V1.0.3.exe `
     -noConsole `
     -STA `
     -x64 `
@@ -445,7 +445,7 @@ ps2exe .\src\easyEXCH-PMA_V1.0.2.ps1 .\easyEXCH-PMA_V1.0.2.exe `
     -company "PhinIT.DE" `
     -product "easyEXCH ProxyAddress Manager" `
     -copyright "© 2025 Andreas Hepp - www.phinit.de" `
-    -version "1.0.2" `
+    -version "1.0.3" `
     -DPIAware `
     -winFormsDPIAware
 ```
@@ -595,7 +595,10 @@ Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
 
 ## 📋 Changelog
 
-Alle Änderungen je Version (1.0.2, 1.0.1, 1.0.0, 0.0.3, 0.0.2, 0.0.1) stehen im **[CHANGELOG.md](CHANGELOG.md)**.
+Alle Änderungen je Version (1.0.3, 1.0.2, 1.0.1, 1.0.0, 0.0.3, 0.0.2, 0.0.1) stehen im **[CHANGELOG.md](CHANGELOG.md)**.
+
+**Neu in 1.0.3** (Bugfix):
+- 🐛 Laden/Suchen von Benutzern funktioniert auch in AD-Umgebungen ohne Exchange-Schemaerweiterung (Fehler „One or more properties are invalid. (Parameter 'msExchRecipientTypeDetails')“)
 
 **Neu in 1.0.2** (Audit-Release 2, Details in [docs/AUDIT.md](docs/AUDIT.md)):
 - 🔒 Schutz vor Log-Injection, strengere Eingabeprüfung, Eindeutigkeit auch gegen `mail`/`userPrincipalName`, abgesichertes History-Backup

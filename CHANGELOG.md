@@ -9,6 +9,13 @@ Jeder Eintrag gehört zu einer konkreten Version mit Datum.
 
 ---
 
+## [1.0.3] – 2026-10-17
+
+### Behoben
+- Laden und Suchen von Benutzern schlug in AD-Umgebungen ohne Exchange-Schemaerweiterung mit „One or more properties are invalid. (Parameter 'msExchRecipientTypeDetails')“ fehl. Die optionalen Attribute `msExchRecipientTypeDetails`, `msExchRecipientDisplayType`, `mailNickname`, `targetAddress` und `legacyExchangeDN` werden jetzt nur abgefragt, wenn sie im AD-Schema vorhanden sind (einmalige Schema-Prüfung, fehlende Attribute werden als WARNING protokolliert)
+
+---
+
 ## [1.0.2] – 2026-10-14 – Audit-Release 2
 
 Vollständiges Audit (Sicherheit, Performance, Funktionen, Verweise, GUI, Befehle) inkl. Bereinigung der Repository-Struktur. Details: [docs/AUDIT.md](docs/AUDIT.md).
@@ -152,7 +159,8 @@ Pull Request [#2](https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyM
 
 - Pull Request [#1](https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/pull/1) (08.12.2025, alternative Implementierung `easyEXCH-ProxyMailAddresses.ps1`) wurde ohne Merge geschlossen und ist daher in keiner Version enthalten.
 
-[1.0.2]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/compare/0ffc9df...main
+[1.0.3]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/compare/a73b138...main
+[1.0.2]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/compare/0ffc9df...a73b138
 [1.0.1]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/pull/2
 [1.0.0]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/commit/00be449
 [0.0.3]: https://github.com/PS-PhinIT/PhinIT.PowerShell-M365_EXO-ProxyMailAddresses/commit/00be449
